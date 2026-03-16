@@ -1,8 +1,21 @@
-# Claude Specific Instructions for VentureNode
+# VentureNode — Claude Instructions
 
-As Claude working on VentureNode (Notion MCP Challenge), adhere to the following strict guidelines:
-1. **Focus on Reasoning & LangGraph State**: When implementing Python agents, put extra emphasis on state management. Ensure the LangGraph nodes pass the correct dictionaries and that state transitions are flawless.
-2. **Notion Schema Adherence**: You are reading and writing to a Notion Workspace. Ensure you provide code that strictly matches the expected properties (Select, Relation, Rich_text, Title).
-3. **No Placeholders**: Never return code with `// TODO: Implement`. Send back complete snippets.
-4. **Tool Use**: Stick to DuckDuckGoSearchRun and BeautifulSoup. No paid search tools.
-5. **Aesthetics**: For Next.js code, utilize Shadcn UI heavily to ensure the Dashboard looks extremely premium. Use `lucide-react` icons.
+## Project Context
+VentureNode is a stateful, multi-agent AI system that uses Notion as its operational database, orchestrated via LangGraph on a FastAPI backend with a Next.js frontend.
+
+## What You MUST Know
+- **Notion Schema is the Contract.** When generating Notion writes, always match property types exactly: `title`, `rich_text`, `number`, `select`, `date`, `checkbox`, `relation`. Wrong property types silently fail.
+- **State Passes Through LangGraph.** Every agent node receives the full `AgentState: TypedDict` and must return a partial dict of only the keys it modifies. Never return the full state object.
+- **Checkpoints Are Async Polls.** Human-in-the-loop checkpoints poll the Notion database for a checkbox toggle. They are not blocking — they are implemented as async loops with exponential backoff.
+
+## Code Generation Rules
+1. Complete, runnable code only. No `# TODO`, no `pass`, no placeholder functions.
+2. All agents return Pydantic models, not raw strings.
+3. For Notion writes: use the `mcp_client.py` wrapper, not the raw Notion SDK.
+4. For market research: use `DuckDuckGoSearchRun` + `BeautifulSoup4` only.
+5. For Groq: use `langchain_groq.ChatGroq` with structured output via `.with_structured_output(PydanticModel)`.
+
+## Design Principles for Responses
+- Prioritize LangGraph state management correctness above all else.
+- When in doubt about a Notion schema, ask — do not guess property names.
+- Keep each agent minimal. One agent = one responsibility.

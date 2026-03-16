@@ -1,18 +1,32 @@
-# VentureNode Editor Rules
+# VentureNode — Cursor Rules
 
-You are assisting with VentureNode, an AI-powered startup operating system built for the Notion MCP Challenge. 
+# Project Overview
+VentureNode is an autonomous multi-agent AI system for startup operations, built for the Notion MCP Challenge.
+Backend: Python / FastAPI / LangGraph. Frontend: Next.js 14 / Tailwind / Shadcn UI.
 
-## Architectural Constraints
-- **100% Free Tools Only**: Do NOT suggest paid APIs (no SerpApi, no OpenAI as primary, no paid vector DBs). We use Groq (LLM), DuckDuckGo Search (OSINT), and FAISS (Memory).
-- **Backend First**: FastAPI and LangGraph handle all agent orchestration.
-- **Frontend**: Next.js 14 App Router, Tailwind CSS, Shadcn UI, Framer Motion for a premium SaaS look.
-- **Notion Source of Truth**: Data MUST be saved to and retrieved from Notion Workspace databases via the Notion API / MCP. We do not use PostgreSQL or MongoDB.
+# Rules: Always Follow
 
-## Coding Standards
-- **Python**: Use `pydantic` for typing, always include Google-style docstrings, type hint all function definitions.
-- **React/Next**: Prefer Server Components, use `lucide-react` for icons. Do not create inline styling. Rely strictly on Tailwind.
-- **Security**: Never hardcode API keys. Use `os.getenv` or Next.js `.env` systems.
+## Architecture Constraints
+- Notion is the exclusive data store. Do NOT introduce PostgreSQL, SQLite, or MongoDB.
+- All agent logic must live in `backend/agents/`. One file per agent.
+- All Notion operations must go through `backend/notion/mcp_client.py`. Agents must not call the Notion SDK directly.
+- The LangGraph graph is defined exclusively in `backend/orchestrator/graph.py`.
 
-## Workflow Rules
-- Generate code by phases (Phase 1 Backend, Phase 2 LangGraph, Phase 3 Frontend, Phase 4 Integration).
-- Provide completed files in a production-ready state. No placeholders (`pass` or `TODO`) unless explicitly asked.
+## API Constraints
+- Use ONLY free APIs: Groq (LLM), DuckDuckGoSearchRun (OSINT), FAISS (Memory).
+- Do NOT suggest SerpApi, OpenAI, Pinecone, Weaviate, or any paid service.
+- All API keys are read from environment variables via `backend/core/config.py`.
+
+## Code Quality Standards
+- Python: PEP 8 compliant. All functions typed. Google-style docstrings required.
+- TypeScript: Strict mode. No `any` types. Use Server Components where possible.
+- No placeholders. No `TODO` comments. No `pass` statements in production code.
+
+## Frontend Standards
+- Use `lucide-react` for all icons. Prefer Shadcn UI component primitives.
+- Use Framer Motion for all transitions and micro-animations.
+- All Tailwind only. No inline styles. No custom CSS unless absolutely necessary.
+
+## Security Standards
+- Never suggest hardcoding API keys in source code.
+- CORS must be restricted in production builds.
