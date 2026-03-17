@@ -280,9 +280,8 @@ async def start_workflow(
 ) -> WorkflowStartResponse:
     """Initiate the multi-agent workflow for a startup idea.
 
-    This endpoint is the primary trigger for the VentureNode pipeline. It
-    validates the input, creates an initial Idea record in Notion, and
-    kicks off the LangGraph orchestration engine in the background.
+    Validates the Notion connection, generates a run ID, and launches
+    the full LangGraph pipeline as a non-blocking background task.
 
     Args:
         request: The incoming HTTP request (used by rate limiter).
@@ -296,32 +295,37 @@ async def start_workflow(
         HTTPException: 503 if required database IDs are not configured.
         HTTPException: 502 if the Notion API returns an error.
     """
+    import asyncio
     import uuid
+
+    from backend.orchestrator.graph import run_pipeline
 
     run_id = str(uuid.uuid4())
 
     logger.info("Workflow start requested", run_id=run_id, idea_preview=body.idea[:80])
 
-    # NOTE: Full LangGraph orchestration will be wired in Phase 2.
-    # For Phase 1, this endpoint validates the request and confirms
-    # the Notion connection is operational.
-
-    try:
-        await mcp_client.verify_connection(client)
-    except Exception as exc:
+    # Verify Notion connectivity before launching the pipeline
+    notion_status = await mcp_client.verify_connection(client)
+    if not notion_status.get("connected"):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Cannot connect to Notion workspace: {exc}",
-        ) from exc
+            detail=f"Cannot connect to Notion workspace: {notion_status.get('error')}",
+        )
+
+    # Launch the pipeline as a fire-and-forget background task.
+    # The client polls /workflow/{run_id}/status for updates.
+    asyncio.create_task(run_pipeline(run_id=run_id, idea_text=body.idea))
 
     return WorkflowStartResponse(
         run_id=run_id,
-        status="queued",
+        status="running",
         message=(
-            "Workflow accepted. The VentureNode agent pipeline will begin processing. "
-            "Agent orchestration (Phase 2) will be wired in the next release."
+            "VentureNode pipeline has started. The Idea Analyzer Agent is now "
+            "processing your idea. Check your Notion workspace for the Ideas page "
+            "and approve it when the analysis is complete to proceed to market research."
         ),
     )
+
 
 
 @router.get(
