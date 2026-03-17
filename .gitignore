@@ -26,8 +26,12 @@ pip-delete-this-directory.txt
 *.swp
 *.swo
 
-# Project Specific
-*.txt
+# Project Specific — only ignore .txt files at the repo root, not backend/requirements.txt
+/*.txt
 .DS_Store
 logs/
 *.log
+
+# Never ignore these even if above patterns match
+!backend/requirements.txt
+!backend/requirements.lock
