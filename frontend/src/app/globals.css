@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Google Fonts — Inter                                                  */
+/* ------------------------------------------------------------------ */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+
+/* ------------------------------------------------------------------ */
+/* Design Tokens                                                         */
+/* ------------------------------------------------------------------ */
+:root {
+  /* Base */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Colors */
+  --color-bg: #ffffff;
+  --color-surface: #f9fafb;
+  --color-surface-2: #f3f4f6;
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f0f0f0;
+
+  --color-text-primary: #0a0a0a;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #9ca3af;
+
+  /* Brand */
+  --color-brand: #6366f1;       /* Indigo-500 */
+  --color-brand-hover: #4f46e5; /* Indigo-600 */
+  --color-brand-light: #eef2ff; /* Indigo-50  */
+  --color-brand-border: #c7d2fe;/* Indigo-200 */
+
+  /* Accent */
+  --color-accent: #06b6d4;      /* Cyan-500 */
+  --color-accent-light: #ecfeff;
+
+  /* Status */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error:   #ef4444;
+  --color-info:    #3b82f6;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadow */
+  --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+  --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
+  --shadow-card: 0 0 0 1px rgb(0 0 0 / 0.05), 0 2px 4px rgb(0 0 0 / 0.04);
+
+  /* Transition */
+  --transition-fast:   150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow:   300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Base Reset & Typography                                               */
+/* ------------------------------------------------------------------ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scrollbar                                                             */
+/* ------------------------------------------------------------------ */
+::-webkit-scrollbar            { width: 6px; height: 6px; }
+::-webkit-scrollbar-track      { background: transparent; }
+::-webkit-scrollbar-thumb      { background: var(--color-border); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover{ background: var(--color-text-muted); }
+
+/* ------------------------------------------------------------------ */
+/* Utility Classes                                                       */
+/* ------------------------------------------------------------------ */
+
+/* Cards */
+.card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition-normal), transform var(--transition-normal);
+}
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+}
+
+/* Pulse ring animation */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgb(99 102 241 / 0.4); }
+  70%  { transform: scale(1);    box-shadow: 0 0 0 8px rgb(99 102 241 / 0);  }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgb(99 102 241 / 0);   }
+}
+.pulse-ring { animation: pulse-ring 2s infinite; }
+
+/* Fade up entrance */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.fade-up { animation: fade-up 0.4s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+/* Dot grid background (hero section) */
+.dot-grid {
+  background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Brand gradient background */
+.brand-gradient {
+  background: linear-gradient(135deg, #eef2ff 0%, #ecfeff 100%);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Status badge */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.running  { background: var(--color-brand); animation: pulse-ring 1.5s infinite; }
+.status-dot.done     { background: var(--color-success); }
+.status-dot.error    { background: var(--color-error); }
+.status-dot.pending  { background: var(--color-text-muted); }
