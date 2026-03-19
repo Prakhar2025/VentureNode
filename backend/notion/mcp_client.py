@@ -97,6 +97,74 @@ def _relation(page_ids: list[str]) -> list[dict]:
     return [{"id": pid} for pid in page_ids]
 
 
+async def _query_database_records(
+    client: AsyncClient,
+    database_id: str,
+    start_cursor: Optional[str] = None,
+) -> dict[str, Any]:
+    """Query pages for a Notion database across SDK versions.
+
+    The notion-client SDK changed from ``databases.query`` to
+    ``data_sources.query`` in newer releases. This helper keeps VentureNode
+    compatible with both forms.
+
+    Args:
+        client: Authenticated Notion async client.
+        database_id: Notion database ID.
+        start_cursor: Optional pagination cursor.
+
+    Returns:
+        dict[str, Any]: Query response payload containing results and pagination.
+    """
+    query_kwargs: dict[str, Any] = {}
+    if start_cursor:
+        query_kwargs["start_cursor"] = start_cursor
+
+    # Older SDKs exposed databases.query(database_id=...)
+    databases_query = getattr(client.databases, "query", None)
+    if callable(databases_query):
+        return await databases_query(database_id=database_id, **query_kwargs)
+
+    # Newer SDKs expose data_sources.query(data_source_id=...)
+    data_sources_query = getattr(client.data_sources, "query", None)
+    if callable(data_sources_query):
+        db = await client.databases.retrieve(database_id=database_id)
+        data_sources = db.get("data_sources", [])
+        if not data_sources:
+            raise RuntimeError(
+                "No data source found for this Notion database. "
+                "Open the database in Notion and ensure it is a standard table data source."
+            )
+
+        data_source_id = data_sources[0].get("id")
+        if not data_source_id:
+            raise RuntimeError("Unable to resolve Notion data source ID for database query.")
+
+        return await data_sources_query(data_source_id=data_source_id, **query_kwargs)
+
+    raise RuntimeError(
+        "Installed notion-client does not support querying databases. "
+        "Please upgrade notion-client to a supported version."
+    )
+
+
+def _is_valid_notion_id(value: Optional[str]) -> bool:
+    """Return True when value looks like a Notion UUID without hyphens.
+
+    Args:
+        value: Candidate Notion ID value.
+
+    Returns:
+        bool: True when value is a 32-char hex string.
+    """
+    if not value:
+        return False
+    normalized = value.replace("-", "")
+    if len(normalized) != 32:
+        return False
+    return all(ch in "0123456789abcdefABCDEF" for ch in normalized)
+
+
 # ------------------------------------------------------------------ #
 # Ideas Database                                                       #
 # ------------------------------------------------------------------ #
@@ -174,11 +242,11 @@ async def get_ideas(client: AsyncClient) -> list[dict[str, Any]]:
     cursor: Optional[str] = None
 
     while True:
-        kwargs: dict[str, Any] = {"database_id": settings.notion_ideas_db_id}
-        if cursor:
-            kwargs["start_cursor"] = cursor
-
-        response = await client.databases.query(**kwargs)
+        response = await _query_database_records(
+            client=client,
+            database_id=settings.notion_ideas_db_id,
+            start_cursor=cursor,
+        )
         results.extend(response.get("results", []))
 
         if not response.get("has_more"):
@@ -209,6 +277,10 @@ async def poll_idea_approval(
     Returns:
         bool: True if approved within the timeout window, False otherwise.
     """
+    if not page_id:
+        logger.warning("Skipping approval polling because page_id is empty")
+        return False
+
     elapsed = 0.0
     logger.info("Polling Notion for idea approval", page_id=page_id)
 
@@ -328,7 +400,10 @@ async def get_research(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_research_db_id:
         raise RuntimeError("NOTION_RESEARCH_DB_ID is not configured.")
 
-    response = await client.databases.query(database_id=settings.notion_research_db_id)
+    response = await _query_database_records(
+        client=client,
+        database_id=settings.notion_research_db_id,
+    )
     return response.get("results", [])
 
 
@@ -399,7 +474,10 @@ async def get_roadmap(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_roadmap_db_id:
         raise RuntimeError("NOTION_ROADMAP_DB_ID is not configured.")
 
-    response = await client.databases.query(database_id=settings.notion_roadmap_db_id)
+    response = await _query_database_records(
+        client=client,
+        database_id=settings.notion_roadmap_db_id,
+    )
     return response.get("results", [])
 
 
@@ -482,7 +560,10 @@ async def get_tasks(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_tasks_db_id:
         raise RuntimeError("NOTION_TASKS_DB_ID is not configured.")
 
-    response = await client.databases.query(database_id=settings.notion_tasks_db_id)
+    response = await _query_database_records(
+        client=client,
+        database_id=settings.notion_tasks_db_id,
+    )
     return response.get("results", [])
 
 
@@ -537,6 +618,29 @@ async def create_report(
         raise
 
 
+async def get_reports(client: AsyncClient) -> list[dict[str, Any]]:
+    """Retrieve all records from the Notion Reports database.
+
+    Args:
+        client: Authenticated Notion async client.
+
+    Returns:
+        list[dict]: Raw Notion page objects.
+
+    Raises:
+        RuntimeError: If the Reports database ID is not configured.
+    """
+    settings = get_settings()
+    if not settings.notion_reports_db_id:
+        raise RuntimeError("NOTION_REPORTS_DB_ID is not configured.")
+
+    response = await _query_database_records(
+        client=client,
+        database_id=settings.notion_reports_db_id,
+    )
+    return response.get("results", [])
+
+
 # ------------------------------------------------------------------ #
 # Connection Verification                                              #
 # ------------------------------------------------------------------ #
@@ -564,3 +668,74 @@ async def verify_connection(client: AsyncClient) -> dict[str, Any]:
     except APIResponseError as exc:
         logger.error("Notion connection verification failed", error=str(exc))
         return {"connected": False, "error": str(exc)}
+
+
+async def verify_workspace_setup(client: AsyncClient) -> dict[str, Any]:
+    """Verify token auth and access to all configured Notion databases.
+
+    This function is stricter than ``verify_connection``. It validates:
+    1) Token authentication.
+    2) Required database IDs are configured and well-formed.
+    3) Integration can retrieve each configured database.
+
+    Args:
+        client: Authenticated Notion async client.
+
+    Returns:
+        dict: Validation summary with overall readiness and per-database status.
+    """
+    auth_status = await verify_connection(client)
+    if not auth_status.get("connected"):
+        return {
+            "connected": False,
+            "ready": False,
+            "auth": auth_status,
+            "databases": {},
+            "error": auth_status.get("error", "Notion authentication failed."),
+        }
+
+    settings = get_settings()
+    configured_databases: list[tuple[str, Optional[str], str]] = [
+        ("ideas", settings.notion_ideas_db_id, "NOTION_IDEAS_DB_ID"),
+        ("research", settings.notion_research_db_id, "NOTION_RESEARCH_DB_ID"),
+        ("roadmap", settings.notion_roadmap_db_id, "NOTION_ROADMAP_DB_ID"),
+        ("tasks", settings.notion_tasks_db_id, "NOTION_TASKS_DB_ID"),
+        ("reports", settings.notion_reports_db_id, "NOTION_REPORTS_DB_ID"),
+    ]
+
+    db_status: dict[str, dict[str, Any]] = {}
+    ready = True
+
+    for name, db_id, env_name in configured_databases:
+        if not db_id:
+            ready = False
+            db_status[name] = {
+                "ok": False,
+                "reason": f"{env_name} is missing.",
+            }
+            continue
+
+        if not _is_valid_notion_id(db_id):
+            ready = False
+            db_status[name] = {
+                "ok": False,
+                "reason": f"{env_name} is not a valid Notion ID.",
+            }
+            continue
+
+        try:
+            await client.databases.retrieve(database_id=db_id)
+            db_status[name] = {"ok": True}
+        except APIResponseError as exc:
+            ready = False
+            db_status[name] = {
+                "ok": False,
+                "reason": str(exc),
+            }
+
+    return {
+        "connected": True,
+        "ready": ready,
+        "auth": auth_status,
+        "databases": db_status,
+    }

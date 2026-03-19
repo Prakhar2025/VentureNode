@@ -78,6 +78,9 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     notion: dict[str, Any]
+    ready: bool = Field(
+        ..., description="True when Notion auth and database access checks pass."
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -107,12 +110,14 @@ async def health_check(client: NotionClient) -> HealthResponse:
     from backend.core.config import get_settings
 
     settings = get_settings()
-    notion_status = await mcp_client.verify_connection(client)
+    workspace_status = await mcp_client.verify_workspace_setup(client)
+    ready = bool(workspace_status.get("ready"))
 
     return HealthResponse(
-        status="operational",
+        status="operational" if ready else "degraded",
         version=settings.app_version,
-        notion=notion_status,
+        notion=workspace_status,
+        ready=ready,
     )
 
 
@@ -257,6 +262,40 @@ async def list_tasks(client: NotionClient) -> dict[str, Any]:
         ) from exc
 
 
+@router.get(
+    "/notion/reports",
+    summary="List All Reports",
+    description="Fetch all execution report records from the Notion Reports database.",
+    tags=["Notion"],
+)
+async def list_reports(client: NotionClient) -> dict[str, Any]:
+    """Return all records from the Notion Reports database.
+
+    Args:
+        client: Injected authenticated Notion client.
+
+    Returns:
+        dict: JSON payload with 'count' and 'results' keys.
+
+    Raises:
+        HTTPException: 503 if the Reports database ID is not configured.
+        HTTPException: 502 if the Notion API returns an unexpected error.
+    """
+    try:
+        results = await mcp_client.get_reports(client)
+        return {"count": len(results), "results": results}
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        logger.error("Failed to fetch Reports", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to retrieve data from Notion.",
+        ) from exc
+
+
 # ------------------------------------------------------------------ #
 # Workflow Endpoints                                                   #
 # ------------------------------------------------------------------ #
@@ -305,11 +344,29 @@ async def start_workflow(
     logger.info("Workflow start requested", run_id=run_id, idea_preview=body.idea[:80])
 
     # Verify Notion connectivity before launching the pipeline
-    notion_status = await mcp_client.verify_connection(client)
-    if not notion_status.get("connected"):
+    workspace_status = await mcp_client.verify_workspace_setup(client)
+    if not workspace_status.get("connected"):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Cannot connect to Notion workspace: {notion_status.get('error')}",
+            detail=(
+                "Cannot connect to Notion workspace: "
+                f"{workspace_status.get('error')}"
+            ),
+        )
+
+    if not workspace_status.get("ready"):
+        db_errors: list[str] = []
+        for db_name, db_info in workspace_status.get("databases", {}).items():
+            if not db_info.get("ok"):
+                db_errors.append(f"{db_name}: {db_info.get('reason')}")
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Notion workspace is connected but not fully configured. "
+                "Fix these database issues first: "
+                + "; ".join(db_errors)
+            ),
         )
 
     # Launch the pipeline as a fire-and-forget background task.
