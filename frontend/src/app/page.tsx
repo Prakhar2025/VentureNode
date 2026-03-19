@@ -30,6 +30,8 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<NotionListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [pipelineStatus, setPipelineStatus] = useState<string>("idle");
+  const [currentStep, setCurrentStep] = useState<string>("idle");
 
   useEffect(() => {
     async function load() {
@@ -46,6 +48,85 @@ export default function DashboardPage() {
     }
     load();
   }, []);
+
+  // Poll workflow status
+  useEffect(() => {
+    if (!activeRunId || pipelineStatus === "done" || pipelineStatus === "error") return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const { getWorkflowStatus } = await import("@/lib/api");
+        const statusData = await getWorkflowStatus(activeRunId);
+        
+        if (statusData) {
+          setPipelineStatus(statusData.status);
+          setCurrentStep(statusData.step ?? "idle");
+        }
+      } catch (e) {
+        console.error("Polling failed", e);
+      }
+    }, 2000);
+
+    return () => clearInterval(intervalId);
+  }, [activeRunId, pipelineStatus]);
+
+  function getLivePipelineSteps() {
+    if (!activeRunId) return AGENT_PIPELINE;
+    
+    // Map backend LangGraph steps to our frontend index
+    const stepOrder = [
+      "initializing", 
+      "idea_analyzer", 
+      "idea_approval_checkpoint", 
+      "idea_approved",
+      "market_research", 
+      "research_approval_checkpoint",
+      "research_approved",
+      "roadmap_generator", 
+      "task_planner", 
+      "execution_monitor", 
+      "memory_stored", 
+      "pipeline_end"
+    ];
+    
+    const currentIndex = stepOrder.indexOf(currentStep);
+    
+    return AGENT_PIPELINE.map((step, idx) => {
+      let status: "idle" | "running" | "done" | "error" = "idle";
+      
+      // Node mapping
+      const isAnalyzer = idx === 0 && currentIndex >= stepOrder.indexOf("idea_analyzer");
+      const isResearch = idx === 1 && currentIndex >= stepOrder.indexOf("market_research");
+      const isRoadmap = idx === 2 && currentIndex >= stepOrder.indexOf("roadmap_generator");
+      const isTasks = idx === 3 && currentIndex >= stepOrder.indexOf("task_planner");
+      const isMonitor = idx === 4 && currentIndex >= stepOrder.indexOf("execution_monitor");
+      
+      const isAnalyzerDone = currentIndex >= stepOrder.indexOf("market_research");
+      const isResearchDone = currentIndex >= stepOrder.indexOf("roadmap_generator");
+      const isRoadmapDone = currentIndex >= stepOrder.indexOf("task_planner");
+      const isTasksDone = currentIndex >= stepOrder.indexOf("execution_monitor");
+      const isMonitorDone = currentIndex >= stepOrder.indexOf("pipeline_end");
+
+      if (pipelineStatus === "error" && ((idx === 0 && !isAnalyzerDone) || (idx === 1 && !isResearchDone) || (idx === 2 && !isRoadmapDone) || (idx === 3 && !isTasksDone) || (idx === 4 && !isMonitorDone))) {
+         status = "error";
+      } else if (idx === 0) {
+         status = isAnalyzerDone ? "done" : isAnalyzer ? "running" : "idle";
+      } else if (idx === 1) {
+         status = isResearchDone ? "done" : isResearch ? "running" : "idle";
+      } else if (idx === 2) {
+         status = isRoadmapDone ? "done" : isRoadmap ? "running" : "idle";
+      } else if (idx === 3) {
+         status = isTasksDone ? "done" : isTasks ? "running" : "idle";
+      } else if (idx === 4) {
+         status = isMonitorDone ? "done" : isMonitor ? "running" : "idle";
+      }
+      
+      if (currentStep === "idea_approval_checkpoint" && idx === 0) status = "done"; // Waiting on human
+      if (currentStep === "research_approval_checkpoint" && idx === 1) status = "done";
+
+      return { ...step, status };
+    });
+  }
 
   const notionConnected = health?.notion?.connected ?? false;
   const totalIdeas = ideas?.count ?? 0;
@@ -138,7 +219,7 @@ export default function DashboardPage() {
           <IdeaSubmitForm onWorkflowStarted={(runId) => setActiveRunId(runId)} />
 
           {/* Agent pipeline */}
-          <div className="card" style={{ padding: 28 }}>
+          <div className="card" style={{ padding: 28, position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
               <Activity size={18} color="var(--color-brand)" />
               <h2 style={{ fontWeight: 700, fontSize: 16, color: "var(--color-text-primary)" }}>
@@ -159,7 +240,24 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
-            <AgentTimeline steps={AGENT_PIPELINE} />
+            
+            <AgentTimeline steps={getLivePipelineSteps()} />
+            
+            {activeRunId && pipelineStatus === "running" && (
+              <div style={{
+                position: "absolute",
+                bottom: 24,
+                right: 28,
+                fontSize: 11,
+                color: "var(--color-text-muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6
+              }}>
+                <span className="pulsing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)" }} />
+                Polling status...
+              </div>
+            )}
           </div>
         </div>
 

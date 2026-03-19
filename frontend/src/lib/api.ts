@@ -38,6 +38,7 @@ export interface WorkflowStatusResponse {
   run_id: string;
   status: string;
   message: string;
+  step?: string;
 }
 
 export interface NotionRecord {
