@@ -343,12 +343,38 @@ async def get_workflow_status(run_id: str) -> dict[str, Any]:
     Returns:
         dict: Status payload including run_id and current state.
     """
-    # NOTE: Persistent run state storage will be added in Phase 2
-    # alongside the LangGraph integration.
+    from backend.orchestrator.graph import get_run_state
+    
+    state = get_run_state(run_id)
+    
+    if not state:
+        return {
+            "run_id": run_id,
+            "status": "not_found",
+            "message": "Workflow run not found or has not started yet.",
+        }
+
+    current_step = state.get("current_step", "initializing")
+    error = state.get("error")
+    
+    # Map graph steps to a frontend-friendly status
+    if error:
+        status_code = "error"
+        message = f"Pipeline failed at {current_step}: {error}"
+    elif current_step in ["memory_stored", "pipeline_end"]:
+        status_code = "done"
+        message = "Pipeline completed successfully."
+    else:
+        status_code = "running"
+        message = f"Agent is currently running step: {current_step.replace('_', ' ').title()}"
+
     return {
         "run_id": run_id,
-        "status": "pending",
-        "message": "Full status tracking will be available after Phase 2 integration.",
+        "status": status_code,
+        "message": message,
+        "step": current_step,
+        "human_approved_idea": state.get("human_approved_idea", False),
+        "human_approved_research": state.get("human_approved_research", False)
     }
 
 
