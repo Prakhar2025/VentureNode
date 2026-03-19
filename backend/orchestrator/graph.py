@@ -205,6 +205,28 @@ def route_after_idea_approval(
     return "market_research" if state.get("human_approved_idea") else "pipeline_end"
 
 
+def route_after_idea_analyzer(
+    state: AgentState,
+) -> Literal["idea_approval_checkpoint", "pipeline_end"]:
+    """Route after idea analysis; stop early on failures.
+
+    Prevents entering approval polling when the idea page could not be created.
+    """
+    if state.get("error"):
+        return "pipeline_end"
+    return "idea_approval_checkpoint" if state.get("idea_page_id") else "pipeline_end"
+
+
+def route_after_market_research(
+    state: AgentState,
+) -> Literal["research_approval_checkpoint", "pipeline_end"]:
+    """Route after research; stop early if research pages were not created."""
+    if state.get("error"):
+        return "pipeline_end"
+    page_ids = state.get("research_page_ids") or []
+    return "research_approval_checkpoint" if page_ids else "pipeline_end"
+
+
 def route_after_research_approval(
     state: AgentState,
 ) -> Literal["roadmap_generator", "pipeline_end"]:
@@ -263,7 +285,15 @@ def build_graph() -> Any:
 
     # ---- Edges: START → Idea Analysis → Idea Checkpoint ---------- #
     builder.add_edge(START, "idea_analyzer")
-    builder.add_edge("idea_analyzer", "idea_approval_checkpoint")
+
+    builder.add_conditional_edges(
+        "idea_analyzer",
+        route_after_idea_analyzer,
+        {
+            "idea_approval_checkpoint": "idea_approval_checkpoint",
+            "pipeline_end": END,
+        },
+    )
 
     # ---- Conditional: Idea Approved? ----------------------------- #
     builder.add_conditional_edges(
@@ -276,7 +306,14 @@ def build_graph() -> Any:
     )
 
     # ---- Edge: Research → Research Checkpoint -------------------- #
-    builder.add_edge("market_research", "research_approval_checkpoint")
+    builder.add_conditional_edges(
+        "market_research",
+        route_after_market_research,
+        {
+            "research_approval_checkpoint": "research_approval_checkpoint",
+            "pipeline_end": END,
+        },
+    )
 
     # ---- Conditional: Research Approved? ------------------------- #
     builder.add_conditional_edges(
