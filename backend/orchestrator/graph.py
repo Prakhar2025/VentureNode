@@ -294,8 +294,11 @@ def build_graph() -> Any:
     builder.add_edge("execution_monitor", "memory_store")
     builder.add_edge("memory_store", END)
 
-    graph = builder.compile()
-    logger.info("VentureNode LangGraph compiled successfully")
+    from langgraph.checkpoint.memory import MemorySaver
+    
+    memory = MemorySaver()
+    graph = builder.compile(checkpointer=memory)
+    logger.info("VentureNode LangGraph compiled successfully with MemorySaver")
     return graph
 
 
@@ -316,6 +319,20 @@ def get_graph() -> Any:
     if _graph_instance is None:
         _graph_instance = build_graph()
     return _graph_instance
+
+
+def get_run_state(run_id: str) -> dict[str, Any]:
+    """Retrieve the current state dictionary of a running pipeline.
+    
+    Args:
+        run_id: Unique identifier used as the thread_id.
+        
+    Returns:
+        dict: The current AgentState or empty dict if not found.
+    """
+    graph = get_graph()
+    state_snap = graph.get_state({"configurable": {"thread_id": run_id}})
+    return state_snap.values if state_snap else {}
 
 
 async def run_pipeline(run_id: str, idea_text: str) -> dict[str, Any]:
@@ -341,7 +358,10 @@ async def run_pipeline(run_id: str, idea_text: str) -> dict[str, Any]:
 
     logger.info("Starting VentureNode pipeline", run_id=run_id)
 
-    final_state = await graph.ainvoke(initial_state)
+    # Use run_id as the thread_id for state tracking
+    config = {"configurable": {"thread_id": run_id}}
+    
+    final_state = await graph.ainvoke(initial_state, config=config)
 
     logger.info(
         "VentureNode pipeline completed",
