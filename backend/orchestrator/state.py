@@ -96,22 +96,19 @@ class ResearchSummary(BaseModel):
         description="Estimated total addressable market size (e.g. '$4.2B by 2027').",
     )
     key_competitors: list[CompetitorInsight] = Field(
-        ...,
-        min_length=2,
+        default_factory=list,
         max_length=6,
-        description="2–6 key competitors or adjacent market players.",
+        description="Up to 6 key competitors or adjacent market players. Return an empty list if none found.",
     )
     market_trends: list[str] = Field(
-        ...,
-        min_length=2,
+        default_factory=list,
         max_length=5,
-        description="2–5 relevant macro or industry trends.",
+        description="Up to 5 relevant macro or industry trends.",
     )
     opportunity_gaps: list[str] = Field(
-        ...,
-        min_length=1,
+        default_factory=list,
         max_length=4,
-        description="1–4 unserved needs or whitespace opportunities in the market.",
+        description="Up to 4 unserved needs or whitespace opportunities in the market.",
     )
     overall_verdict: str = Field(
         ...,
@@ -199,10 +196,6 @@ class ExecutionReport(BaseModel):
         description="Percentage of tasks marked Done.",
     )
     summary: str = Field(..., description="Narrative summary of progress this period.")
-    bottlenecks: list[str] = Field(
-        default_factory=list,
-        description="List of identified blockers or at-risk items.",
-    )
     insights: str = Field(..., description="Key patterns and observations from the data.")
     recommendations: str = Field(
         ...,

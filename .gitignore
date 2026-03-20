@@ -35,3 +35,8 @@ logs/
 # Never ignore these even if above patterns match
 !backend/requirements.txt
 !backend/requirements.lock
+
+# FAISS / Local Vector Memory
+.vector_store/
+*.faiss
+*.pkl
