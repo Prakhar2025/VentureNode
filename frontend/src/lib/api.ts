@@ -4,6 +4,9 @@
  * This is the single point of contact between the Next.js frontend
  * and the FastAPI backend. All HTTP requests go through this module.
  *
+ * Security: Every mutating/reading request attaches the Clerk JWT in the
+ * Authorization: Bearer header so FastAPI can enforce tenant isolation.
+ *
  * Contract: mirrors the FastAPI route definitions in backend/api/routes.py.
  */
 
@@ -63,7 +66,8 @@ export type AgentStatus = "idle" | "running" | "done" | "error";
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
-const apiClient: AxiosInstance = axios.create({
+/** Base (unauthenticated) client — for public endpoints only. */
+const publicClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 30_000,
   headers: {
@@ -71,6 +75,24 @@ const apiClient: AxiosInstance = axios.create({
     Accept: "application/json",
   },
 });
+
+/**
+ * Create a per-request authenticated Axios client.
+ *
+ * @param token - Raw Clerk JWT string. Obtain via Clerk's `useAuth().getToken()`.
+ * @returns Axios instance with `Authorization: Bearer <token>` pre-set.
+ */
+function createAuthClient(token: string): AxiosInstance {
+  return axios.create({
+    baseURL: BASE_URL,
+    timeout: 30_000,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
 
 // ------------------------------------------------------------------ //
 // Error normalizer                                                      //
@@ -94,22 +116,24 @@ function normalizeError(error: unknown): never {
 
 export async function getHealth(): Promise<HealthResponse> {
   try {
-    const { data } = await apiClient.get<HealthResponse>("/health");
+    const { data } = await publicClient.get<HealthResponse>("/health");
     return data;
   } catch (error) {
     normalizeError(error);
   }
 }
 
+
 // ------------------------------------------------------------------ //
 // Workflow                                                              //
 // ------------------------------------------------------------------ //
 
 export async function startWorkflow(
-  idea: string
+  idea: string,
+  token: string
 ): Promise<WorkflowStartResponse> {
   try {
-    const { data } = await apiClient.post<WorkflowStartResponse>(
+    const { data } = await createAuthClient(token).post<WorkflowStartResponse>(
       "/workflow/start",
       { idea } satisfies WorkflowStartRequest
     );
@@ -120,10 +144,11 @@ export async function startWorkflow(
 }
 
 export async function getWorkflowStatus(
-  runId: string
+  runId: string,
+  token: string
 ): Promise<WorkflowStatusResponse> {
   try {
-    const { data } = await apiClient.get<WorkflowStatusResponse>(
+    const { data } = await createAuthClient(token).get<WorkflowStatusResponse>(
       `/workflow/${runId}/status`
     );
     return data;
@@ -136,37 +161,37 @@ export async function getWorkflowStatus(
 // Notion Database Reads                                                 //
 // ------------------------------------------------------------------ //
 
-export async function getIdeas(): Promise<NotionListResponse> {
+export async function getIdeas(token: string): Promise<NotionListResponse> {
   try {
-    const { data } = await apiClient.get<NotionListResponse>("/notion/ideas");
+    const { data } = await createAuthClient(token).get<NotionListResponse>("/notion/ideas");
     return data;
   } catch (error) {
     normalizeError(error);
   }
 }
 
-export async function getResearch(): Promise<NotionListResponse> {
+export async function getResearch(token: string): Promise<NotionListResponse> {
   try {
     const { data } =
-      await apiClient.get<NotionListResponse>("/notion/research");
+      await createAuthClient(token).get<NotionListResponse>("/notion/research");
     return data;
   } catch (error) {
     normalizeError(error);
   }
 }
 
-export async function getRoadmap(): Promise<NotionListResponse> {
+export async function getRoadmap(token: string): Promise<NotionListResponse> {
   try {
-    const { data } = await apiClient.get<NotionListResponse>("/notion/roadmap");
+    const { data } = await createAuthClient(token).get<NotionListResponse>("/notion/roadmap");
     return data;
   } catch (error) {
     normalizeError(error);
   }
 }
 
-export async function getTasks(): Promise<NotionListResponse> {
+export async function getTasks(token: string): Promise<NotionListResponse> {
   try {
-    const { data } = await apiClient.get<NotionListResponse>("/notion/tasks");
+    const { data } = await createAuthClient(token).get<NotionListResponse>("/notion/tasks");
     return data;
   } catch (error) {
     normalizeError(error);
@@ -177,12 +202,12 @@ export async function getTasks(): Promise<NotionListResponse> {
 // Monitor                                                               //
 // ------------------------------------------------------------------ //
 
-export async function triggerReportGeneration(): Promise<{
+export async function triggerReportGeneration(token: string): Promise<{
   status: string;
   message: string;
 }> {
   try {
-    const { data } = await apiClient.post("/monitor/report");
+    const { data } = await createAuthClient(token).post("/monitor/report");
     return data;
   } catch (error) {
     normalizeError(error);
