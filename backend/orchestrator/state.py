@@ -245,6 +245,10 @@ class AgentState(TypedDict, total=False):
 
     # ---- Task Planner Output ------------------------------------- #
     task_page_ids: Optional[list[str]]
+    kanban_page_id: Optional[str]   # Notion Kanban sub-page under the Idea page
+
+    # ---- Agent Memory (Streaming Reasoning) ---------------------- #
+    memory_page_id: Optional[str]   # Notion Memory page for this run
 
     # ---- Execution Monitor Output -------------------------------- #
     report_page_id: Optional[str]

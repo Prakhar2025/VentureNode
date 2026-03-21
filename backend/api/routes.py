@@ -493,3 +493,127 @@ async def trigger_report(
         "status": "accepted",
         "message": "Report generation will be available after Phase 2 agent integration.",
     }
+
+
+# ------------------------------------------------------------------ #
+# Sprint 2 — Kanban Board & Memory Streaming Endpoints               #
+# ------------------------------------------------------------------ #
+
+
+class KanbanCreateRequest(BaseModel):
+    """Request body for manually creating a Kanban board on a Notion page."""
+
+    idea_page_id: str = Field(
+        ...,
+        description="Notion page ID of the parent Idea record.",
+    )
+    idea_name: str = Field(
+        ...,
+        max_length=200,
+        description="Name of the idea — used as the Kanban page title.",
+    )
+    task_titles: list[str] = Field(
+        default_factory=list,
+        description="List of task titles to seed in the Backlog column.",
+    )
+
+
+@router.post(
+    "/notion/kanban",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Kanban Board",
+    description=(
+        "Manually trigger creation of a Kanban board sub-page under a Notion Idea page. "
+        "This is called automatically by the Task Planner agent, but can also be "
+        "triggered on demand for testing or manual workflows."
+    ),
+    tags=["Notion"],
+)
+async def create_kanban(
+    body: KanbanCreateRequest,
+    client: NotionClient,
+    current_user: CurrentUser,
+) -> dict[str, str]:
+    """Create a Kanban board Notion sub-page for an idea.
+
+    Args:
+        body: Request payload with the idea page ID and task titles.
+        client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal.
+
+    Returns:
+        dict: JSON payload with the new Kanban page ID and Notion URL.
+
+    Raises:
+        HTTPException: 502 if the Notion API returns an error.
+    """
+    try:
+        kanban_page_id = await mcp_client.create_kanban_board(
+            client=client,
+            parent_page_id=body.idea_page_id,
+            idea_name=body.idea_name,
+            task_titles=body.task_titles,
+        )
+        return {
+            "kanban_page_id": kanban_page_id,
+            "notion_url": f"https://notion.so/{kanban_page_id.replace('-', '')}",
+        }
+    except Exception as exc:
+        logger.error(
+            "Failed to create Kanban board via API",
+            tenant_id=current_user.tenant_id,
+            error=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to create Kanban board in Notion: {exc}",
+        ) from exc
+
+
+@router.get(
+    "/workflow/{run_id}/memory",
+    summary="Get Agent Memory Page",
+    description=(
+        "Retrieve the Notion Memory page URL for a specific pipeline run. "
+        "The Memory page contains live agent reasoning traces written in real-time."
+    ),
+    tags=["Workflow"],
+)
+async def get_memory_page(run_id: str) -> dict[str, Any]:
+    """Return the agent Memory page details for a workflow run.
+
+    Args:
+        run_id: The UUID returned by the /workflow/start endpoint.
+
+    Returns:
+        dict: Payload with run_id, memory_page_id, and Notion URL.
+    """
+    from backend.orchestrator.graph import get_run_state
+
+    state = get_run_state(run_id)
+
+    if not state:
+        return {
+            "run_id": run_id,
+            "status": "not_found",
+            "message": "Workflow run not found or has not started yet.",
+        }
+
+    memory_page_id = state.get("memory_page_id")
+    kanban_page_id = state.get("kanban_page_id")
+
+    return {
+        "run_id": run_id,
+        "memory_page_id": memory_page_id,
+        "memory_notion_url": (
+            f"https://notion.so/{memory_page_id.replace('-', '')}"
+            if memory_page_id
+            else None
+        ),
+        "kanban_page_id": kanban_page_id,
+        "kanban_notion_url": (
+            f"https://notion.so/{kanban_page_id.replace('-', '')}"
+            if kanban_page_id
+            else None
+        ),
+    }

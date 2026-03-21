@@ -372,12 +372,17 @@ def get_run_state(run_id: str) -> dict[str, Any]:
     return state_snap.values if state_snap else {}
 
 
-async def run_pipeline(run_id: str, idea_text: str) -> dict[str, Any]:
+async def run_pipeline(
+    run_id: str,
+    idea_text: str,
+    tenant_id: str = "",
+) -> dict[str, Any]:
     """Execute the full VentureNode agent pipeline for a startup idea.
 
     Args:
         run_id: Unique identifier for this pipeline run.
         idea_text: The raw startup idea description from the founder.
+        tenant_id: Clerk user ID for RLS — threaded through to Notion writes.
 
     Returns:
         dict: The final AgentState after pipeline completion.
@@ -391,19 +396,24 @@ async def run_pipeline(run_id: str, idea_text: str) -> dict[str, Any]:
         "human_approved_idea": False,
         "human_approved_research": False,
         "error": None,
+        # Sprint 2: pre-seed memory_page_id as empty string so task_agent
+        # knows it must call get_or_create_memory_page on first run.
+        "memory_page_id": "",
+        "kanban_page_id": None,
     }
 
-    logger.info("Starting VentureNode pipeline", run_id=run_id)
+    logger.info("Starting VentureNode pipeline", run_id=run_id, tenant_id=tenant_id)
 
-    # Use run_id as the thread_id for state tracking
     config = {"configurable": {"thread_id": run_id}}
-    
+
     final_state = await graph.ainvoke(initial_state, config=config)
 
     logger.info(
         "VentureNode pipeline completed",
         run_id=run_id,
         final_step=final_state.get("current_step"),
+        kanban_page_id=final_state.get("kanban_page_id"),
+        memory_page_id=final_state.get("memory_page_id"),
         error=final_state.get("error"),
     )
 
