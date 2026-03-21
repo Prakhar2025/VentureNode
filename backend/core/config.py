@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     notion_reports_db_id: Optional[str] = Field(
         default=None, description="Notion 'Reports' database page ID."
     )
+    notion_memory_page_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Notion page ID of the parent 'Agent Memory' page. "
+            "Each pipeline run creates a sub-page here with live agent reasoning traces."
+        ),
+    )
 
     # ------------------------------------------------------------------ #
     # LLM Inference                                                        #
