@@ -101,6 +101,7 @@ async def _query_database_records(
     client: AsyncClient,
     database_id: str,
     start_cursor: Optional[str] = None,
+    filter_payload: Optional[dict] = None,
 ) -> dict[str, Any]:
     """Query pages for a Notion database across SDK versions.
 
@@ -112,6 +113,7 @@ async def _query_database_records(
         client: Authenticated Notion async client.
         database_id: Notion database ID.
         start_cursor: Optional pagination cursor.
+        filter_payload: Optional Notion filter object for RLS scoping.
 
     Returns:
         dict[str, Any]: Query response payload containing results and pagination.
@@ -119,6 +121,8 @@ async def _query_database_records(
     query_kwargs: dict[str, Any] = {}
     if start_cursor:
         query_kwargs["start_cursor"] = start_cursor
+    if filter_payload:
+        query_kwargs["filter"] = filter_payload
 
     # Older SDKs exposed databases.query(database_id=...)
     databases_query = getattr(client.databases, "query", None)
@@ -222,11 +226,16 @@ async def create_idea(
         raise
 
 
-async def get_ideas(client: AsyncClient) -> list[dict[str, Any]]:
-    """Retrieve all records from the Notion Ideas database.
+async def get_ideas(
+    client: AsyncClient,
+    tenant_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Retrieve records from the Notion Ideas database, scoped by tenant.
 
     Args:
         client: Authenticated Notion async client.
+        tenant_id: Clerk user ID used as RLS key. When provided, only pages
+            whose ``tenant_id`` rich_text property matches are returned.
 
     Returns:
         list[dict]: Raw Notion page objects from the Ideas database.
@@ -238,6 +247,13 @@ async def get_ideas(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_ideas_db_id:
         raise RuntimeError("NOTION_IDEAS_DB_ID is not configured.")
 
+    filter_payload: Optional[dict] = None
+    if tenant_id:
+        filter_payload = {
+            "property": "tenant_id",
+            "rich_text": {"equals": tenant_id},
+        }
+
     results: list[dict] = []
     cursor: Optional[str] = None
 
@@ -246,6 +262,7 @@ async def get_ideas(client: AsyncClient) -> list[dict[str, Any]]:
             client=client,
             database_id=settings.notion_ideas_db_id,
             start_cursor=cursor,
+            filter_payload=filter_payload,
         )
         results.extend(response.get("results", []))
 
@@ -384,11 +401,15 @@ async def create_research(
         raise
 
 
-async def get_research(client: AsyncClient) -> list[dict[str, Any]]:
-    """Retrieve all records from the Notion Research database.
+async def get_research(
+    client: AsyncClient,
+    tenant_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Retrieve records from the Notion Research database, scoped by tenant.
 
     Args:
         client: Authenticated Notion async client.
+        tenant_id: Clerk user ID used as RLS key.
 
     Returns:
         list[dict]: Raw Notion page objects.
@@ -400,9 +421,16 @@ async def get_research(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_research_db_id:
         raise RuntimeError("NOTION_RESEARCH_DB_ID is not configured.")
 
+    filter_payload: Optional[dict] = (
+        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
+        if tenant_id
+        else None
+    )
+
     response = await _query_database_records(
         client=client,
         database_id=settings.notion_research_db_id,
+        filter_payload=filter_payload,
     )
     return response.get("results", [])
 
@@ -458,11 +486,15 @@ async def create_roadmap_item(
         raise
 
 
-async def get_roadmap(client: AsyncClient) -> list[dict[str, Any]]:
-    """Retrieve all records from the Notion Roadmap database.
+async def get_roadmap(
+    client: AsyncClient,
+    tenant_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Retrieve records from the Notion Roadmap database, scoped by tenant.
 
     Args:
         client: Authenticated Notion async client.
+        tenant_id: Clerk user ID used as RLS key.
 
     Returns:
         list[dict]: Raw Notion page objects.
@@ -474,9 +506,16 @@ async def get_roadmap(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_roadmap_db_id:
         raise RuntimeError("NOTION_ROADMAP_DB_ID is not configured.")
 
+    filter_payload: Optional[dict] = (
+        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
+        if tenant_id
+        else None
+    )
+
     response = await _query_database_records(
         client=client,
         database_id=settings.notion_roadmap_db_id,
+        filter_payload=filter_payload,
     )
     return response.get("results", [])
 
@@ -544,11 +583,15 @@ async def create_task(
         raise
 
 
-async def get_tasks(client: AsyncClient) -> list[dict[str, Any]]:
-    """Retrieve all records from the Notion Tasks database.
+async def get_tasks(
+    client: AsyncClient,
+    tenant_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Retrieve records from the Notion Tasks database, scoped by tenant.
 
     Args:
         client: Authenticated Notion async client.
+        tenant_id: Clerk user ID used as RLS key.
 
     Returns:
         list[dict]: Raw Notion page objects.
@@ -560,9 +603,16 @@ async def get_tasks(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_tasks_db_id:
         raise RuntimeError("NOTION_TASKS_DB_ID is not configured.")
 
+    filter_payload: Optional[dict] = (
+        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
+        if tenant_id
+        else None
+    )
+
     response = await _query_database_records(
         client=client,
         database_id=settings.notion_tasks_db_id,
+        filter_payload=filter_payload,
     )
     return response.get("results", [])
 
@@ -618,11 +668,15 @@ async def create_report(
         raise
 
 
-async def get_reports(client: AsyncClient) -> list[dict[str, Any]]:
-    """Retrieve all records from the Notion Reports database.
+async def get_reports(
+    client: AsyncClient,
+    tenant_id: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Retrieve records from the Notion Reports database, scoped by tenant.
 
     Args:
         client: Authenticated Notion async client.
+        tenant_id: Clerk user ID used as RLS key.
 
     Returns:
         list[dict]: Raw Notion page objects.
@@ -634,9 +688,16 @@ async def get_reports(client: AsyncClient) -> list[dict[str, Any]]:
     if not settings.notion_reports_db_id:
         raise RuntimeError("NOTION_REPORTS_DB_ID is not configured.")
 
+    filter_payload: Optional[dict] = (
+        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
+        if tenant_id
+        else None
+    )
+
     response = await _query_database_records(
         client=client,
         database_id=settings.notion_reports_db_id,
+        filter_payload=filter_payload,
     )
     return response.get("results", [])
 

@@ -24,6 +24,7 @@ from slowapi.util import get_remote_address
 from backend.core.logging import get_logger
 from backend.notion import mcp_client
 from backend.notion.mcp_client import get_notion_client
+from backend.api.auth import CurrentUser
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -132,11 +133,15 @@ async def health_check(client: NotionClient) -> HealthResponse:
     description="Fetch all startup idea records from the Notion Ideas database.",
     tags=["Notion"],
 )
-async def list_ideas(client: NotionClient) -> dict[str, Any]:
-    """Return all records from the Notion Ideas database.
+async def list_ideas(
+    client: NotionClient,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Return all Notion Ideas records scoped to the authenticated tenant.
 
     Args:
         client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal containing tenant_id.
 
     Returns:
         dict: JSON payload with 'count' and 'results' keys.
@@ -146,7 +151,9 @@ async def list_ideas(client: NotionClient) -> dict[str, Any]:
         HTTPException: 502 if the Notion API returns an unexpected error.
     """
     try:
-        results = await mcp_client.get_ideas(client)
+        results = await mcp_client.get_ideas(
+            client, tenant_id=current_user.tenant_id
+        )
         return {"count": len(results), "results": results}
     except RuntimeError as exc:
         raise HTTPException(
@@ -166,21 +173,23 @@ async def list_ideas(client: NotionClient) -> dict[str, Any]:
     description="Fetch all market research records from the Notion Research database.",
     tags=["Notion"],
 )
-async def list_research(client: NotionClient) -> dict[str, Any]:
-    """Return all records from the Notion Research database.
+async def list_research(
+    client: NotionClient,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Return all Notion Research records scoped to the authenticated tenant.
 
     Args:
         client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal containing tenant_id.
 
     Returns:
         dict: JSON payload with 'count' and 'results' keys.
-
-    Raises:
-        HTTPException: 503 if the Research database ID is not configured.
-        HTTPException: 502 if the Notion API returns an unexpected error.
     """
     try:
-        results = await mcp_client.get_research(client)
+        results = await mcp_client.get_research(
+            client, tenant_id=current_user.tenant_id
+        )
         return {"count": len(results), "results": results}
     except RuntimeError as exc:
         raise HTTPException(
@@ -200,21 +209,23 @@ async def list_research(client: NotionClient) -> dict[str, Any]:
     description="Fetch all milestone records from the Notion Roadmap database.",
     tags=["Notion"],
 )
-async def list_roadmap(client: NotionClient) -> dict[str, Any]:
-    """Return all records from the Notion Roadmap database.
+async def list_roadmap(
+    client: NotionClient,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Return all Notion Roadmap records scoped to the authenticated tenant.
 
     Args:
         client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal containing tenant_id.
 
     Returns:
         dict: JSON payload with 'count' and 'results' keys.
-
-    Raises:
-        HTTPException: 503 if the Roadmap database ID is not configured.
-        HTTPException: 502 if the Notion API returns an unexpected error.
     """
     try:
-        results = await mcp_client.get_roadmap(client)
+        results = await mcp_client.get_roadmap(
+            client, tenant_id=current_user.tenant_id
+        )
         return {"count": len(results), "results": results}
     except RuntimeError as exc:
         raise HTTPException(
@@ -234,21 +245,23 @@ async def list_roadmap(client: NotionClient) -> dict[str, Any]:
     description="Fetch all execution task records from the Notion Tasks database.",
     tags=["Notion"],
 )
-async def list_tasks(client: NotionClient) -> dict[str, Any]:
-    """Return all records from the Notion Tasks database.
+async def list_tasks(
+    client: NotionClient,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Return all Notion Tasks records scoped to the authenticated tenant.
 
     Args:
         client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal containing tenant_id.
 
     Returns:
         dict: JSON payload with 'count' and 'results' keys.
-
-    Raises:
-        HTTPException: 503 if the Tasks database ID is not configured.
-        HTTPException: 502 if the Notion API returns an unexpected error.
     """
     try:
-        results = await mcp_client.get_tasks(client)
+        results = await mcp_client.get_tasks(
+            client, tenant_id=current_user.tenant_id
+        )
         return {"count": len(results), "results": results}
     except RuntimeError as exc:
         raise HTTPException(
@@ -268,21 +281,23 @@ async def list_tasks(client: NotionClient) -> dict[str, Any]:
     description="Fetch all execution report records from the Notion Reports database.",
     tags=["Notion"],
 )
-async def list_reports(client: NotionClient) -> dict[str, Any]:
-    """Return all records from the Notion Reports database.
+async def list_reports(
+    client: NotionClient,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    """Return all Notion Reports records scoped to the authenticated tenant.
 
     Args:
         client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal containing tenant_id.
 
     Returns:
         dict: JSON payload with 'count' and 'results' keys.
-
-    Raises:
-        HTTPException: 503 if the Reports database ID is not configured.
-        HTTPException: 502 if the Notion API returns an unexpected error.
     """
     try:
-        results = await mcp_client.get_reports(client)
+        results = await mcp_client.get_reports(
+            client, tenant_id=current_user.tenant_id
+        )
         return {"count": len(results), "results": results}
     except RuntimeError as exc:
         raise HTTPException(
@@ -316,6 +331,7 @@ async def start_workflow(
     request: Request,
     body: WorkflowStartRequest,
     client: NotionClient,
+    current_user: CurrentUser,
 ) -> WorkflowStartResponse:
     """Initiate the multi-agent workflow for a startup idea.
 
@@ -326,6 +342,7 @@ async def start_workflow(
         request: The incoming HTTP request (used by rate limiter).
         body: Validated request payload containing the idea description.
         client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal containing tenant_id.
 
     Returns:
         WorkflowStartResponse: Acknowledgement with a run ID for status polling.
@@ -371,7 +388,13 @@ async def start_workflow(
 
     # Launch the pipeline as a fire-and-forget background task.
     # The client polls /workflow/{run_id}/status for updates.
-    asyncio.create_task(run_pipeline(run_id=run_id, idea_text=body.idea))
+    asyncio.create_task(
+        run_pipeline(
+            run_id=run_id,
+            idea_text=body.idea,
+            tenant_id=current_user.tenant_id,
+        )
+    )
 
     return WorkflowStartResponse(
         run_id=run_id,
@@ -450,17 +473,22 @@ async def get_workflow_status(run_id: str) -> dict[str, Any]:
     ),
     tags=["Monitor"],
 )
-async def trigger_report(client: NotionClient) -> dict[str, str]:
+async def trigger_report(
+    client: NotionClient,
+    current_user: CurrentUser,
+) -> dict[str, str]:
     """Manually invoke the Execution Monitor Agent.
 
     Args:
         client: Injected authenticated Notion client.
+        current_user: Decoded Clerk JWT principal containing tenant_id.
 
     Returns:
         dict: Acknowledgement payload.
     """
-    logger.info("Manual report generation triggered")
-    # NOTE: ExecutionMonitorAgent will be wired in Phase 2.
+    logger.info(
+        "Manual report generation triggered", tenant_id=current_user.tenant_id
+    )
     return {
         "status": "accepted",
         "message": "Report generation will be available after Phase 2 agent integration.",
