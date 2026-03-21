@@ -41,3 +41,6 @@ slowapi>=0.1.9
 
 # --- Observability & Logging ---
 structlog>=25.1.0
+
+# --- Authentication (Clerk JWT) ---
+PyJWT[cryptography]>=2.9.0

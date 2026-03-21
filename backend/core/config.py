@@ -94,6 +94,21 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ #
+    # Clerk Authentication                                                 #
+    # ------------------------------------------------------------------ #
+    clerk_secret_key: SecretStr = Field(
+        ...,
+        description="Clerk Secret Key (sk_test_xxx or sk_live_xxx).",
+    )
+    clerk_frontend_api: str = Field(
+        ...,
+        description=(
+            "Clerk Frontend API hostname — used as the JWKS URL root and "
+            "the expected 'iss' claim.  Example: unbiased-starfish-85.clerk.accounts.dev"
+        ),
+    )
+
+    # ------------------------------------------------------------------ #
     # Rate Limiting                                                        #
     # ------------------------------------------------------------------ #
     rate_limit_per_minute: int = Field(
