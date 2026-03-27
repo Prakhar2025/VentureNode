@@ -1,32 +1,62 @@
-# VentureNode — Cursor Rules
+# VentureNode — Cursor AI Rules
+# Read this entire file before writing a single line of code.
 
-# Project Overview
-VentureNode is an autonomous multi-agent AI system for startup operations, built for the Notion MCP Challenge.
-Backend: Python / FastAPI / LangGraph. Frontend: Next.js 14 / Tailwind / Shadcn UI.
+## Project Identity
+VentureNode is a production-grade, autonomous multi-agent AI operating system for startup founders.
+Backend: Python 3.11+ · FastAPI · LangGraph · Groq · FAISS · Notion SDK.
+Frontend: Next.js 14 App Router · Tailwind CSS · Radix UI · Framer Motion · Clerk v7.
 
-# Rules: Always Follow
+---
 
-## Architecture Constraints
-- Notion is the exclusive data store. Do NOT introduce PostgreSQL, SQLite, or MongoDB.
-- All agent logic must live in `backend/agents/`. One file per agent.
-- All Notion operations must go through `backend/notion/mcp_client.py`. Agents must not call the Notion SDK directly.
+## Non-Negotiable Architecture Rules
+
+### Data Layer
+- **Notion is the exclusive data store.** Never introduce PostgreSQL, SQLite, MongoDB, Redis, or any other database.
+- **All Notion operations MUST go through `backend/notion/mcp_client.py`** and nowhere else. Not in agents. Not in routes. Not in graph.py.
+- Every database write must match the exact Notion property types in `docs/notion-setup.md`: `title`, `rich_text`, `number`, `select`, `date`, `checkbox`, `relation`.
+
+### Orchestration
 - The LangGraph graph is defined exclusively in `backend/orchestrator/graph.py`.
+- Every agent lives in `backend/agents/` — one file, one responsibility.
+- Agents receive `AgentState: TypedDict` and return ONLY the keys they modify. Never return the full state.
+- Human-in-the-loop checkpoints are async polling loops against Notion checkboxes. They are NOT blocking calls.
 
-## API Constraints
-- Use ONLY free APIs: Groq (LLM), DuckDuckGoSearchRun (OSINT), FAISS (Memory).
-- Do NOT suggest SerpApi, OpenAI, Pinecone, Weaviate, or any paid service.
-- All API keys are read from environment variables via `backend/core/config.py`.
+### Configuration
+- **`backend/core/config.py` is the single source of truth for all environment variables.** No module reads `os.environ` directly.
+- **`frontend/lib/api.ts` is the ONLY file that makes HTTP calls to FastAPI.** No component calls fetch/axios directly.
+
+### API & Stack (Free Only)
+- LLM inference: `langchain_groq.ChatGroq` with `llama-3.3-70b-versatile`.
+- Search/OSINT: `DuckDuckGoSearchRun` only. Never SerpApi, Google Search API, or Bing.
+- Vector memory: `FAISS` only. Never Pinecone, Weaviate, or Chroma.
+- **No paid APIs.** If it has a credit card attached, do not suggest it.
+
+---
 
 ## Code Quality Standards
-- Python: PEP 8 compliant. All functions typed. Google-style docstrings required.
-- TypeScript: Strict mode. No `any` types. Use Server Components where possible.
-- No placeholders. No `TODO` comments. No `pass` statements in production code.
 
-## Frontend Standards
-- Use `lucide-react` for all icons. Prefer Shadcn UI component primitives.
-- Use Framer Motion for all transitions and micro-animations.
-- All Tailwind only. No inline styles. No custom CSS unless absolutely necessary.
+### Python
+- PEP 8 compliant. All functions must have typed signatures.
+- Google-style docstrings on all public functions and classes.
+- Use `async def` for all FastAPI routes and all Notion client operations.
+- Zero `TODO` comments, zero `pass` statements, zero placeholder functions in production code.
+- Use `structlog` for logging, not `print()` or `logging.info()`.
 
-## Security Standards
-- Never suggest hardcoding API keys in source code.
-- CORS must be restricted in production builds.
+### TypeScript / Next.js
+- Strict mode (`"strict": true` in tsconfig). Zero `any` types.
+- App Router only. No Page Router patterns.
+- Server Components by default. Mark `"use client"` only when required for state/hooks.
+- Use `useAuth()` from `@clerk/nextjs` to get JWT tokens for every API call.
+
+### Frontend Styling
+- `lucide-react` for all icons. Radix UI for interactive primitives.
+- Framer Motion for all page transitions and micro-animations.
+- Tailwind CSS only. No inline `style={{}}` attributes.
+
+---
+
+## Security
+- Never hardcode API keys, tokens, or secrets in source code.
+- All secrets are environment variables loaded via `backend/core/config.py`.
+- CORS origins must be explicit — never use `"*"` in production.
+- All protected routes require `CurrentUser` dependency (Clerk JWT verification).
