@@ -41,6 +41,11 @@ Always use `.with_structured_output(PydanticModel)`. Never parse raw strings fro
 - `ClerkUser.tenant_id` is the Clerk `sub` claim (e.g., `user_3BWbA0sc...`).
 - Frontend: always call `const { getToken } = useAuth()` and pass `Authorization: Bearer <token>` header.
 
+### 6. Application Routing Architecture (NEW)
+- `/` (Root): The public, unprotected Next.js Open-Source Marketing Landing Page.
+- `/dashboard`: The private, protected application interface (previously at `/`).
+- Clerk `middleware.ts` must be configured with `publicRoutes: ["/"]` so the landing page is accessible without logging in.
+
 ---
 
 ## Code Generation Rules
@@ -57,3 +62,6 @@ Always use `.with_structured_output(PydanticModel)`. Never parse raw strings fro
 - **Correctness over cleverness.** LangGraph state management errors are silent and catastrophic.
 - **One agent, one responsibility.** Resist the urge to make agents do two things.
 - **Ask before guessing Notion property names.** A wrong property name causes a 400 from Notion's API with no useful error message.
+
+---
+

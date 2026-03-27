@@ -21,7 +21,7 @@ const NAV_GROUPS = [
   {
     label: "Workspace",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/ideas", label: "Ideas", icon: Lightbulb },
       { href: "/research", label: "Research", icon: TrendingUp },
     ],
@@ -64,7 +64,7 @@ export default function Sidebar() {
       }}
     >
       {/* Logo */}
-      <Link href="/" style={{ textDecoration: "none", marginBottom: 28, display: "block" }}>
+      <Link href="/dashboard" style={{ textDecoration: "none", marginBottom: 28, display: "block" }}>
         <motion.div
           whileHover={{ scale: 1.02 }}
           style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 10px", borderRadius: 14 }}

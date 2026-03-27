@@ -60,3 +60,8 @@ Frontend: Next.js 14 App Router · Tailwind CSS · Radix UI · Framer Motion · 
 - All secrets are environment variables loaded via `backend/core/config.py`.
 - CORS origins must be explicit — never use `"*"` in production.
 - All protected routes require `CurrentUser` dependency (Clerk JWT verification).
+
+## Application Architecture & Routing
+1. The root route (`/`) is strictly a public Marketing Landing Page. Do not put protected dashboard components here.
+2. The core application interface is located at `/dashboard`.
+3. Clerk authentication must be configured in `middleware.ts` to allow `/` as a public route.

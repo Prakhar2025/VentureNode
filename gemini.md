@@ -28,6 +28,11 @@ Implement in order: Backend → Agent Orchestration → Frontend → Integration
 ### 5. Notion Schema Compliance
 Every database write must match the exact property types in `docs/notion-setup.md`.
 
+### 6. Application Routing Architecture
+- **Marketing Site:** `/` is the public, unprotected open-source marketing landing page.
+- **Application Dashboard:** `/dashboard` is the private, protected dashboard interface.
+- **Middleware:** [frontend/src/middleware.ts](cci:7://file:///c:/Users/prakh/OneDrive/Desktop/FounderOS/frontend/src/middleware.ts:0:0-0:0) uses `publicRoutes: ["/"]` to allow unauthenticated access to the landing page.
+
 ---
 
 ## Key System Contracts
