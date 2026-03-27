@@ -2,8 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
   env: {
     NEXT_PUBLIC_APP_NAME: "VentureNode",
     NEXT_PUBLIC_APP_VERSION: "1.0.0",
