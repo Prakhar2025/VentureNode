@@ -4,27 +4,51 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Lightbulb, TrendingUp, Map, CheckSquare,
-  Activity, ArrowRight, Wifi, WifiOff, BarChart3, Zap
+  Activity, ArrowRight, Wifi, WifiOff, BarChart3, Zap,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
 import Sidebar from "@/components/Sidebar";
 import IdeaSubmitForm from "@/components/IdeaSubmitForm";
-import { StatCard, AgentTimeline, EmptyState } from "@/components/ui";
+import { StatCard, AgentTimeline, GlassCard, SectionHeader } from "@/components/ui";
 import {
   getHealth, getIdeas, getTasks,
   type HealthResponse, type NotionListResponse,
-  extractText, extractSelect,
+  extractSelect,
 } from "@/lib/api";
+
+// --------------------------------------------------------------------- //
+// Agent pipeline config                                                  //
+// --------------------------------------------------------------------- //
 
 const AGENT_PIPELINE = [
   { agent: "Idea Analyzer", status: "idle" as const, message: "Waiting for idea submission..." },
-  { agent: "Market Research", status: "idle" as const, message: "DuckDuckGo OSINT + BeautifulSoup scraper on standby" },
+  { agent: "Market Research", status: "idle" as const, message: "DuckDuckGo OSINT + BeautifulSoup on standby" },
   { agent: "Roadmap Generator", status: "idle" as const, message: "Ready to plan 3-phase product roadmap" },
-  { agent: "Task Planner", status: "idle" as const, message: "Will create Notion-linked execution tasks" },
-  { agent: "Execution Monitor", status: "idle" as const, message: "Tracks completion and generates reports" },
+  { agent: "Task Planner", status: "idle" as const, message: "Will create Kanban board + Notion tasks" },
+  { agent: "Execution Monitor", status: "idle" as const, message: "Tracks completion, generates reports" },
 ];
 
+const STEP_ORDER = [
+  "initializing", "idea_analyzer", "idea_approval_checkpoint", "idea_approved",
+  "market_research", "research_approval_checkpoint", "research_approved",
+  "roadmap_generator", "task_planner", "execution_monitor", "memory_stored", "pipeline_end",
+];
+
+const WORKSPACE_LINKS = [
+  { href: "/ideas",    label: "Ideas",    icon: Lightbulb,   desc: "AI-scored startup concepts",   color: "#7C3AED" },
+  { href: "/research", label: "Research", icon: TrendingUp,  desc: "Live market intelligence",     color: "#06B6D4" },
+  { href: "/roadmap",  label: "Roadmap",  icon: Map,         desc: "3-phase product plan",         color: "#10B981" },
+  { href: "/tasks",    label: "Tasks",    icon: CheckSquare, desc: "Execution task board",         color: "#F59E0B" },
+];
+
+// --------------------------------------------------------------------- //
+// Main Dashboard                                                         //
+// --------------------------------------------------------------------- //
+
 export default function DashboardPage() {
+  const { getToken } = useAuth();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [ideas, setIdeas] = useState<NotionListResponse | null>(null);
   const [tasks, setTasks] = useState<NotionListResponse | null>(null);
@@ -33,11 +57,15 @@ export default function DashboardPage() {
   const [pipelineStatus, setPipelineStatus] = useState<string>("idle");
   const [currentStep, setCurrentStep] = useState<string>("idle");
 
+  // Initial data load
   useEffect(() => {
     async function load() {
       try {
+        const token = (await getToken()) ?? "";
         const [h, i, t] = await Promise.allSettled([
-          getHealth(), getIdeas(), getTasks()
+          getHealth(),
+          getIdeas(token),
+          getTasks(token),
         ]);
         if (h.status === "fulfilled") setHealth(h.value);
         if (i.status === "fulfilled") setIdeas(i.value);
@@ -47,252 +75,452 @@ export default function DashboardPage() {
       }
     }
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Poll workflow status
   useEffect(() => {
     if (!activeRunId || pipelineStatus === "done" || pipelineStatus === "error") return;
-
-    const intervalId = setInterval(async () => {
+    const id = setInterval(async () => {
       try {
         const { getWorkflowStatus } = await import("@/lib/api");
-        const statusData = await getWorkflowStatus(activeRunId);
-        
-        if (statusData) {
-          setPipelineStatus(statusData.status);
-          setCurrentStep(statusData.step ?? "idle");
-        }
-      } catch (e) {
-        console.error("Polling failed", e);
-      }
+        const token = (await getToken()) ?? "";
+        const s = await getWorkflowStatus(activeRunId, token);
+        if (s) { setPipelineStatus(s.status); setCurrentStep(s.step ?? "idle"); }
+      } catch { /* non-fatal */ }
     }, 2000);
-
-    return () => clearInterval(intervalId);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRunId, pipelineStatus]);
 
   function getLivePipelineSteps() {
     if (!activeRunId) return AGENT_PIPELINE;
-    
-    // Map backend LangGraph steps to our frontend index
-    const stepOrder = [
-      "initializing", 
-      "idea_analyzer", 
-      "idea_approval_checkpoint", 
-      "idea_approved",
-      "market_research", 
-      "research_approval_checkpoint",
-      "research_approved",
-      "roadmap_generator", 
-      "task_planner", 
-      "execution_monitor", 
-      "memory_stored", 
-      "pipeline_end"
-    ];
-    
-    const currentIndex = stepOrder.indexOf(currentStep);
-    
-    return AGENT_PIPELINE.map((step, idx) => {
+    const idx = STEP_ORDER.indexOf(currentStep);
+    return AGENT_PIPELINE.map((step, i) => {
+      const thresholds = [
+        STEP_ORDER.indexOf("idea_analyzer"),
+        STEP_ORDER.indexOf("market_research"),
+        STEP_ORDER.indexOf("roadmap_generator"),
+        STEP_ORDER.indexOf("task_planner"),
+        STEP_ORDER.indexOf("execution_monitor"),
+      ];
+      const doneThresholds = [
+        STEP_ORDER.indexOf("market_research"),
+        STEP_ORDER.indexOf("roadmap_generator"),
+        STEP_ORDER.indexOf("task_planner"),
+        STEP_ORDER.indexOf("execution_monitor"),
+        STEP_ORDER.indexOf("pipeline_end"),
+      ];
       let status: "idle" | "running" | "done" | "error" = "idle";
-      
-      // Node mapping
-      const isAnalyzer = idx === 0 && currentIndex >= stepOrder.indexOf("idea_analyzer");
-      const isResearch = idx === 1 && currentIndex >= stepOrder.indexOf("market_research");
-      const isRoadmap = idx === 2 && currentIndex >= stepOrder.indexOf("roadmap_generator");
-      const isTasks = idx === 3 && currentIndex >= stepOrder.indexOf("task_planner");
-      const isMonitor = idx === 4 && currentIndex >= stepOrder.indexOf("execution_monitor");
-      
-      const isAnalyzerDone = currentIndex >= stepOrder.indexOf("market_research");
-      const isResearchDone = currentIndex >= stepOrder.indexOf("roadmap_generator");
-      const isRoadmapDone = currentIndex >= stepOrder.indexOf("task_planner");
-      const isTasksDone = currentIndex >= stepOrder.indexOf("execution_monitor");
-      const isMonitorDone = currentIndex >= stepOrder.indexOf("pipeline_end");
-
-      if (pipelineStatus === "error" && ((idx === 0 && !isAnalyzerDone) || (idx === 1 && !isResearchDone) || (idx === 2 && !isRoadmapDone) || (idx === 3 && !isTasksDone) || (idx === 4 && !isMonitorDone))) {
-         status = "error";
-      } else if (idx === 0) {
-         status = isAnalyzerDone ? "done" : isAnalyzer ? "running" : "idle";
-      } else if (idx === 1) {
-         status = isResearchDone ? "done" : isResearch ? "running" : "idle";
-      } else if (idx === 2) {
-         status = isRoadmapDone ? "done" : isRoadmap ? "running" : "idle";
-      } else if (idx === 3) {
-         status = isTasksDone ? "done" : isTasks ? "running" : "idle";
-      } else if (idx === 4) {
-         status = isMonitorDone ? "done" : isMonitor ? "running" : "idle";
+      if (pipelineStatus === "error") {
+        status = "error";
+      } else if (idx >= doneThresholds[i]) {
+        status = "done";
+      } else if (idx >= thresholds[i]) {
+        status = "running";
       }
-      
-      if (currentStep === "idea_approval_checkpoint" && idx === 0) status = "done"; // Waiting on human
-      if (currentStep === "research_approval_checkpoint" && idx === 1) status = "done";
-
+      // Approval waiting = previous agent done
+      if (currentStep === "idea_approval_checkpoint" && i === 0) status = "done";
+      if (currentStep === "research_approval_checkpoint" && i === 1) status = "done";
       return { ...step, status };
     });
   }
 
   const notionConnected = health?.notion?.connected ?? false;
-  const totalIdeas = ideas?.count ?? 0;
-  const totalTasks = tasks?.count ?? 0;
-  const doneTasks = tasks?.results.filter(r => {
-    const status = extractSelect(r.properties["Status"]);
-    return status === "Done";
-  }).length ?? 0;
-
+  const totalIdeas    = ideas?.count ?? 0;
+  const totalTasks    = tasks?.count ?? 0;
+  const doneTasks     = tasks?.results.filter((r) => extractSelect(r.properties["Status"]) === "Done").length ?? 0;
   const completionRate = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-bg)" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "#F8F9FC", position: "relative", zIndex: 1 }}>
       <Sidebar />
 
       {/* Main content */}
-      <main style={{ marginLeft: 240, flex: 1, padding: "40px 48px", maxWidth: "100%" }}>
-        {/* Header */}
+      <main
+        style={{
+          marginLeft: 256,
+          flex: 1,
+          padding: "40px 48px 64px",
+          maxWidth: "100%",
+          minHeight: "100vh",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+
+        {/* ============================================================ */}
+        {/* TOP HEADER                                                     */}
+        {/* ============================================================ */}
         <motion.div
-          initial={{ opacity: 0, y: -12 }}
+          initial={{ opacity: 0, y: -14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           style={{ marginBottom: 40 }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 24,
+              marginBottom: 12,
+            }}
+          >
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, color: "var(--color-text-primary)", letterSpacing: "-0.5px", marginBottom: 6 }}>
-                Startup Operating System
+              {/* Micro breadcrumb */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: "#9CA3AF",
+                  fontWeight: 500,
+                  marginBottom: 8,
+                  letterSpacing: "0.02em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <Zap size={11} color="#7C3AED" />
+                <span style={{ color: "#7C3AED", fontWeight: 600 }}>VentureNode</span>
+                <span>/</span>
+                <span>Dashboard</span>
+              </div>
+
+              <h1
+                style={{
+                  fontSize: 32,
+                  fontWeight: 800,
+                  color: "#111827",
+                  letterSpacing: "-0.8px",
+                  lineHeight: 1.15,
+                  marginBottom: 6,
+                }}
+              >
+                Startup Operating
+                <span
+                  style={{
+                    background: "linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    marginLeft: 10,
+                  }}
+                >
+                  System
+                </span>
               </h1>
-              <p style={{ fontSize: 15, color: "var(--color-text-secondary)" }}>
-                Your AI co-founder, tracking every step from idea to execution.
+
+              <p style={{ fontSize: 15, color: "#6B7280", lineHeight: 1.5 }}>
+                Your autonomous AI co-founder — from idea to execution, inside Notion.
               </p>
             </div>
 
-            {/* Notion status badge */}
+            {/* Notion status pill */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.88 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: 0.25 }}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                padding: "8px 16px",
-                borderRadius: "var(--radius-full)",
-                border: `1px solid ${notionConnected ? "#bbf7d0" : "#fecaca"}`,
-                background: notionConnected ? "#f0fdf4" : "#fef2f2",
+                padding: "10px 18px",
+                borderRadius: 999,
+                border: `1px solid ${notionConnected ? "#BBF7D0" : "#FECACA"}`,
+                background: notionConnected
+                  ? "linear-gradient(135deg, #F0FDF4, #ECFDF5)"
+                  : "linear-gradient(135deg, #FEF2F2, #FFF1F2)",
+                boxShadow: notionConnected
+                  ? "0 2px 8px rgba(16,185,129,0.1)"
+                  : "0 2px 8px rgba(239,68,68,0.08)",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
               {notionConnected ? (
-                <Wifi size={14} color="var(--color-success)" />
+                <Wifi size={14} color="#10B981" />
               ) : (
-                <WifiOff size={14} color="var(--color-error)" />
+                <WifiOff size={14} color="#EF4444" />
               )}
-              <span style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: notionConnected ? "var(--color-success)" : "var(--color-error)"
-              }}>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: notionConnected ? "#065F46" : "#B91C1C",
+                }}
+              >
                 Notion {notionConnected ? "Connected" : "Disconnected"}
               </span>
               {notionConnected && health?.notion?.user && (
-                <span style={{ fontSize: 12, color: "#4b7c5a" }}>
+                <span style={{ fontSize: 12, color: "#6EE7B7", fontWeight: 500 }}>
                   · {health.notion.user}
                 </span>
               )}
             </motion.div>
           </div>
-
-          {/* Breadcrumb */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--color-text-muted)" }}>
-            <Zap size={13} />
-            <span>VentureNode</span>
-            <span>/</span>
-            <span style={{ color: "var(--color-text-primary)", fontWeight: 500 }}>Dashboard</span>
-          </div>
         </motion.div>
 
-        {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
-          <StatCard label="Ideas Analyzed" value={loading ? "—" : totalIdeas} icon={<Lightbulb size={18} />} delay={0.05} />
-          <StatCard label="Tasks Created" value={loading ? "—" : totalTasks} icon={<CheckSquare size={18} />} delay={0.1} color="var(--color-success)" />
-          <StatCard label="Task Completion" value={loading ? "—" : `${completionRate}%`} icon={<BarChart3 size={18} />} delay={0.15} color="var(--color-accent)" />
-          <StatCard label="Backend Version" value={health?.version ?? "—"} icon={<Activity size={18} />} delay={0.2} color="var(--color-warning)" />
+        {/* ============================================================ */}
+        {/* STATS ROW                                                      */}
+        {/* ============================================================ */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 16,
+            marginBottom: 32,
+          }}
+        >
+          <StatCard
+            label="Ideas Analyzed"
+            value={loading ? "—" : totalIdeas}
+            icon={<Lightbulb size={20} />}
+            delay={0.05}
+            color="#7C3AED"
+            sublabel="Across all runs"
+          />
+          <StatCard
+            label="Tasks Created"
+            value={loading ? "—" : totalTasks}
+            icon={<CheckSquare size={20} />}
+            delay={0.1}
+            color="#10B981"
+            sublabel="In Notion Tasks DB"
+          />
+          <StatCard
+            label="Task Completion"
+            value={loading ? "—" : `${completionRate}%`}
+            icon={<BarChart3 size={20} />}
+            delay={0.15}
+            color="#06B6D4"
+            sublabel={`${doneTasks} of ${totalTasks} done`}
+          />
+          <StatCard
+            label="Backend Version"
+            value={health?.version ?? "—"}
+            icon={<Activity size={20} />}
+            delay={0.2}
+            color="#F59E0B"
+            sublabel={health?.status ?? "checking..."}
+          />
         </div>
 
-        {/* Two-column grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
-          {/* Idea submission */}
+        {/* ============================================================ */}
+        {/* TWO-COLUMN GRID: Submit + Pipeline                            */}
+        {/* ============================================================ */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.05fr 0.95fr",
+            gap: 24,
+            marginBottom: 32,
+            alignItems: "start",
+          }}
+        >
           <IdeaSubmitForm onWorkflowStarted={(runId) => setActiveRunId(runId)} />
 
-          {/* Agent pipeline */}
-          <div className="card" style={{ padding: 28, position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <Activity size={18} color="var(--color-brand)" />
-              <h2 style={{ fontWeight: 700, fontSize: 16, color: "var(--color-text-primary)" }}>
-                Agent Pipeline
-              </h2>
-              {activeRunId && (
-                <span style={{
-                  marginLeft: "auto",
-                  fontSize: 11,
-                  padding: "3px 10px",
-                  background: "var(--color-brand-light)",
-                  border: "1px solid var(--color-brand-border)",
-                  borderRadius: "var(--radius-full)",
-                  color: "var(--color-brand)",
-                  fontWeight: 600,
-                }}>
-                  LIVE
-                </span>
-              )}
-            </div>
-            
+          {/* Agent Pipeline card */}
+          <GlassCard padding={28}>
+            <SectionHeader
+              title="Agent Pipeline"
+              subtitle="Live multi-agent execution trace"
+              right={
+                activeRunId ? (
+                  <motion.span
+                    animate={{ opacity: [1, 0.5, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    style={{
+                      fontSize: 10.5,
+                      padding: "3px 10px",
+                      background: "linear-gradient(135deg, #EDE9FE, #DDD6FE)",
+                      border: "1px solid rgba(124,58,237,0.2)",
+                      borderRadius: 999,
+                      color: "#7C3AED",
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    ● LIVE
+                  </motion.span>
+                ) : undefined
+              }
+            />
+
             <AgentTimeline steps={getLivePipelineSteps()} />
-            
+
             {activeRunId && pipelineStatus === "running" && (
-              <div style={{
-                position: "absolute",
-                bottom: 24,
-                right: 28,
-                fontSize: 11,
-                color: "var(--color-text-muted)",
-                display: "flex",
-                alignItems: "center",
-                gap: 6
-              }}>
-                <span className="pulsing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)" }} />
-                Polling status...
+              <div
+                style={{
+                  marginTop: 18,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 11.5,
+                  color: "#9CA3AF",
+                  paddingTop: 14,
+                  borderTop: "1px solid rgba(0,0,0,0.05)",
+                }}
+              >
+                <span
+                  className="pulsing-dot"
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#7C3AED",
+                    display: "inline-block",
+                  }}
+                />
+                Polling every 2s • Run {activeRunId.slice(0, 8)}...
               </div>
             )}
-          </div>
+
+            {!activeRunId && (
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: "12px 16px",
+                  background: "rgba(124,58,237,0.04)",
+                  border: "1px solid rgba(124,58,237,0.08)",
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Sparkles size={14} color="#7C3AED" />
+                <span style={{ fontSize: 12.5, color: "#7C3AED", fontWeight: 500 }}>
+                  Submit an idea to activate the pipeline
+                </span>
+              </div>
+            )}
+          </GlassCard>
         </div>
 
-        {/* Quick links */}
+        {/* ============================================================ */}
+        {/* WORKSPACE LINKS                                                */}
+        {/* ============================================================ */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.35, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          <h3 style={{ fontWeight: 600, fontSize: 15, color: "var(--color-text-primary)", marginBottom: 16 }}>
-            Workspace Views
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-            {[
-              { href: "/ideas", label: "Ideas", icon: Lightbulb, desc: "AI-scored startup concepts", color: "var(--color-brand)" },
-              { href: "/research", label: "Research", icon: TrendingUp, desc: "Live market intelligence", color: "var(--color-accent)" },
-              { href: "/roadmap", label: "Roadmap", icon: Map, desc: "3-phase product plan", color: "var(--color-success)" },
-              { href: "/tasks", label: "Tasks", icon: CheckSquare, desc: "Execution task board", color: "var(--color-warning)" },
-            ].map(({ href, label, icon: Icon, desc, color }, i) => (
-              <motion.div key={href} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 16,
+            }}
+          >
+            <h3
+              style={{
+                fontWeight: 700,
+                fontSize: 16,
+                color: "#111827",
+                letterSpacing: "-0.2px",
+              }}
+            >
+              Workspace Views
+            </h3>
+            <span style={{ fontSize: 12, color: "#9CA3AF" }}>
+              All data synced with Notion
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 14,
+            }}
+          >
+            {WORKSPACE_LINKS.map(({ href, label, icon: Icon, desc, color }, i) => (
+              <motion.div
+                key={href}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+                whileHover={{ y: -4, scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+              >
                 <Link href={href} style={{ textDecoration: "none" }}>
-                  <div className="card" style={{ padding: "20px 18px", cursor: "pointer" }}>
-                    <div style={{
-                      width: 36, height: 36,
-                      borderRadius: "var(--radius-md)",
-                      background: `${color}15`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      color, marginBottom: 12,
-                    }}>
-                      <Icon size={18} />
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.88)",
+                      backdropFilter: "blur(12px)",
+                      WebkitBackdropFilter: "blur(12px)",
+                      border: "1px solid rgba(0,0,0,0.06)",
+                      borderRadius: 18,
+                      padding: "22px 20px",
+                      cursor: "pointer",
+                      boxShadow: "0 0 0 1px rgba(0,0,0,0.04), 0 3px 12px rgba(0,0,0,0.04)",
+                      transition: "box-shadow 220ms",
+                      height: "100%",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.boxShadow =
+                        `0 0 0 1px ${color}25, 0 8px 24px rgba(0,0,0,0.07)`;
+                      (e.currentTarget as HTMLElement).style.borderColor = `${color}25`;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.boxShadow =
+                        "0 0 0 1px rgba(0,0,0,0.04), 0 3px 12px rgba(0,0,0,0.04)";
+                      (e.currentTarget as HTMLElement).style.borderColor = "rgba(0,0,0,0.06)";
+                    }}
+                  >
+                    {/* Icon */}
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 13,
+                        background: `${color}14`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <Icon size={20} />
                     </div>
-                    <p style={{ fontWeight: 600, fontSize: 14, color: "var(--color-text-primary)", marginBottom: 4 }}>{label}</p>
-                    <p style={{ fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.4 }}>{desc}</p>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 12, color: "var(--color-brand)" }}>
-                      <span style={{ fontSize: 12, fontWeight: 500 }}>View</span>
+
+                    <p
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 15,
+                        color: "#111827",
+                        marginBottom: 4,
+                        letterSpacing: "-0.2px",
+                      }}
+                    >
+                      {label}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: 12.5,
+                        color: "#9CA3AF",
+                        lineHeight: 1.45,
+                        marginBottom: 16,
+                      }}
+                    >
+                      {desc}
+                    </p>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        color,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <span>Open view</span>
                       <ArrowRight size={12} />
                     </div>
                   </div>
