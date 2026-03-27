@@ -13,10 +13,9 @@ import {
   Zap,
   ExternalLink,
   Github,
-  Settings,
-  Bell,
+  LogOut,
 } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 
 const NAV_GROUPS = [
   {
@@ -39,6 +38,11 @@ const NAV_GROUPS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  const displayName = user?.fullName ?? user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ?? "Founder";
+  const displayEmail = user?.emailAddresses?.[0]?.emailAddress ?? "";
 
   return (
     <aside
@@ -203,7 +207,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom section */}
+      {/* Bottom section — user account + links */}
       <div
         style={{
           borderTop: "1px solid rgba(0,0,0,0.06)",
@@ -213,7 +217,7 @@ export default function Sidebar() {
           gap: 2,
         }}
       >
-        {/* Clerk user button */}
+        {/* User row */}
         <div
           style={{
             display: "flex",
@@ -232,12 +236,53 @@ export default function Sidebar() {
             }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              My Account
+            <p style={{
+              fontSize: 13, fontWeight: 600, color: "#111827",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {displayName}
             </p>
-            <p style={{ fontSize: 11, color: "#9CA3AF" }}>Founder</p>
+            {displayEmail && (
+              <p style={{
+                fontSize: 11, color: "#9CA3AF",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {displayEmail}
+              </p>
+            )}
           </div>
         </div>
+
+        {/* Sign out */}
+        <button
+          onClick={() => signOut({ redirectUrl: "/sign-in" })}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 10px",
+            borderRadius: 10,
+            color: "#9CA3AF",
+            fontSize: 13,
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            width: "100%",
+            textAlign: "left",
+            transition: "all 150ms",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(239,68,68,0.06)";
+            e.currentTarget.style.color = "#EF4444";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "#9CA3AF";
+          }}
+        >
+          <LogOut size={13} />
+          <span>Sign out</span>
+        </button>
 
         {/* GitHub link */}
         <a
@@ -270,7 +315,7 @@ export default function Sidebar() {
         </a>
 
         <div style={{ padding: "6px 10px", fontSize: 10.5, color: "#D1D5DB", fontWeight: 500 }}>
-          v2.0.0 — Sprint 3 · EthAum AI
+          v1.0.0 — VentureNode · Notion MCP
         </div>
       </div>
     </aside>

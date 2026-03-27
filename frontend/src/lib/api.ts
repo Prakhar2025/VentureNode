@@ -158,10 +158,10 @@ export async function getWorkflowStatus(
 }
 
 // ------------------------------------------------------------------ //
-// Notion Database Reads                                                 //
+// Notion Database Reads — token is required (always pass Clerk JWT)   //
 // ------------------------------------------------------------------ //
 
-export async function getIdeas(token: string): Promise<NotionListResponse> {
+export async function getIdeas(token: string = ""): Promise<NotionListResponse> {
   try {
     const { data } = await createAuthClient(token).get<NotionListResponse>("/notion/ideas");
     return data;
@@ -170,7 +170,7 @@ export async function getIdeas(token: string): Promise<NotionListResponse> {
   }
 }
 
-export async function getResearch(token: string): Promise<NotionListResponse> {
+export async function getResearch(token: string = ""): Promise<NotionListResponse> {
   try {
     const { data } =
       await createAuthClient(token).get<NotionListResponse>("/notion/research");
@@ -180,7 +180,7 @@ export async function getResearch(token: string): Promise<NotionListResponse> {
   }
 }
 
-export async function getRoadmap(token: string): Promise<NotionListResponse> {
+export async function getRoadmap(token: string = ""): Promise<NotionListResponse> {
   try {
     const { data } = await createAuthClient(token).get<NotionListResponse>("/notion/roadmap");
     return data;
@@ -189,7 +189,7 @@ export async function getRoadmap(token: string): Promise<NotionListResponse> {
   }
 }
 
-export async function getTasks(token: string): Promise<NotionListResponse> {
+export async function getTasks(token: string = ""): Promise<NotionListResponse> {
   try {
     const { data } = await createAuthClient(token).get<NotionListResponse>("/notion/tasks");
     return data;
@@ -198,11 +198,19 @@ export async function getTasks(token: string): Promise<NotionListResponse> {
   }
 }
 
+export async function getReports(token: string = ""): Promise<NotionListResponse> {
+  try {
+    const { data } = await createAuthClient(token).get<NotionListResponse>("/notion/reports");
+    return data;
+  } catch (error) {
+    normalizeError(error);
+  }
+}
 // ------------------------------------------------------------------ //
 // Monitor                                                               //
 // ------------------------------------------------------------------ //
 
-export async function triggerReportGeneration(token: string): Promise<{
+export async function triggerReportGeneration(token: string = ""): Promise<{
   status: string;
   message: string;
 }> {

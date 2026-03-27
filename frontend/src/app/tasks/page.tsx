@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { CheckSquare, RefreshCw, XCircle, Clock, AlertCircle, CheckCircle2, Inbox } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
@@ -92,6 +93,7 @@ function TaskCard({ record, index }: { record: NotionRecord; index: number }) {
 }
 
 export default function TasksPage() {
+  const { getToken } = useAuth();
   const [tasks, setTasks] = useState<NotionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +101,11 @@ export default function TasksPage() {
 
   async function load() {
     setLoading(true); setError(null);
-    try { const d = await getTasks(); setTasks(d.results); }
+    try {
+      const token = (await getToken()) ?? "";
+      const d = await getTasks(token);
+      setTasks(d.results);
+    }
     catch (e) { setError(e instanceof Error ? e.message : "Failed"); }
     finally { setLoading(false); }
   }

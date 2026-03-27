@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { Lightbulb, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
@@ -117,6 +118,7 @@ function IdeaCard({ record, index }: { record: NotionRecord; index: number }) {
 }
 
 export default function IdeasPage() {
+  const { getToken } = useAuth();
   const [ideas, setIdeas] = useState<NotionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +126,8 @@ export default function IdeasPage() {
   async function load() {
     setLoading(true); setError(null);
     try {
-      const data = await getIdeas();
+      const token = (await getToken()) ?? "";
+      const data = await getIdeas(token);
       setIdeas(data.results);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");

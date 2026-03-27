@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { Map, RefreshCw, XCircle } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
@@ -70,13 +71,18 @@ function RoadmapCard({ record, index }: { record: NotionRecord; index: number })
 }
 
 export default function RoadmapPage() {
+  const { getToken } = useAuth();
   const [items, setItems] = useState<NotionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true); setError(null);
-    try { const d = await getRoadmap(); setItems(d.results); }
+    try {
+      const token = (await getToken()) ?? "";
+      const d = await getRoadmap(token);
+      setItems(d.results);
+    }
     catch (e) { setError(e instanceof Error ? e.message : "Failed"); }
     finally { setLoading(false); }
   }

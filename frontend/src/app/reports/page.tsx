@@ -1,19 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { BarChart3, RefreshCw, XCircle, TrendingUp, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { EmptyState, Skeleton } from "@/components/ui";
-import { getHealth, extractText, extractSelect, extractNumber, type NotionRecord } from "@/lib/api";
-import axios from "axios";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
-async function getReports(): Promise<{ count: number; results: NotionRecord[] }> {
-  const { data } = await axios.get(`${BASE_URL}/notion/reports`);
-  return data;
-}
+import { getReports, triggerReportGeneration, extractText, extractNumber, type NotionRecord } from "@/lib/api";
 
 function MetricPill({ label, value, color }: { label: string; value: string | number; color: string }) {
   return (
@@ -51,7 +44,6 @@ function ReportCard({ record, index }: { record: NotionRecord; index: number }) 
       className="card"
       style={{ padding: 28 }}
     >
-      {/* Report header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{
@@ -74,7 +66,6 @@ function ReportCard({ record, index }: { record: NotionRecord; index: number }) 
         </a>
       </div>
 
-      {/* Metrics row */}
       {(totalTasks > 0 || completionRate > 0) && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
           <MetricPill label="Total Tasks" value={totalTasks} color="#6366f1" />
@@ -84,13 +75,10 @@ function ReportCard({ record, index }: { record: NotionRecord; index: number }) 
         </div>
       )}
 
-      {/* Summary */}
       {summary && (
         <div style={{
-          padding: "16px 18px",
-          borderRadius: "var(--radius-md)",
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
+          padding: "16px 18px", borderRadius: "var(--radius-md)",
+          background: "var(--color-surface)", border: "1px solid var(--color-border)",
         }}>
           <p style={{ fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.7 }}>
             {summary}
@@ -98,7 +86,6 @@ function ReportCard({ record, index }: { record: NotionRecord; index: number }) 
         </div>
       )}
 
-      {/* Status summary */}
       <div style={{ display: "flex", gap: 16, marginTop: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <CheckCircle2 size={14} color="#10b981" />
@@ -124,6 +111,7 @@ function ReportCard({ record, index }: { record: NotionRecord; index: number }) 
 }
 
 export default function ReportsPage() {
+  const { getToken } = useAuth();
   const [reports, setReports] = useState<NotionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +119,11 @@ export default function ReportsPage() {
 
   async function load() {
     setLoading(true); setError(null);
-    try { const d = await getReports(); setReports(d.results); }
+    try {
+      const token = (await getToken()) ?? "";
+      const d = await getReports(token);
+      setReports(d.results);
+    }
     catch (e) { setError(e instanceof Error ? e.message : "Failed to load reports"); }
     finally { setLoading(false); }
   }
@@ -139,7 +131,8 @@ export default function ReportsPage() {
   async function handleGenerateReport() {
     setGenerating(true);
     try {
-      await axios.post(`${BASE_URL}/monitor/report`);
+      const token = (await getToken()) ?? "";
+      await triggerReportGeneration(token);
       setTimeout(load, 3000);
     } catch {
       setError("Failed to trigger report. Make sure the backend is running.");
