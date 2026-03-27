@@ -93,7 +93,15 @@ async def get_current_user(
 
     try:
         jwks_client = _get_jwks_client()
-        signing_key = jwks_client.get_signing_key_from_jwt(raw_token)
+        
+        try:
+            signing_key = jwks_client.get_signing_key_from_jwt(raw_token)
+        except Exception:
+            # Fallback: Clerk v7 may return mismatched `kid`s (instance vs key ID)
+            keys = jwks_client.get_jwk_set().keys
+            if not keys:
+                raise ValueError("No keys found in JWKS.")
+            signing_key = keys[0]
 
         payload: dict = jwt.decode(
             raw_token,
