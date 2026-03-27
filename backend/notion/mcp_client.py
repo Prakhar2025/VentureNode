@@ -248,11 +248,6 @@ async def get_ideas(
         raise RuntimeError("NOTION_IDEAS_DB_ID is not configured.")
 
     filter_payload: Optional[dict] = None
-    if tenant_id:
-        filter_payload = {
-            "property": "tenant_id",
-            "rich_text": {"equals": tenant_id},
-        }
 
     results: list[dict] = []
     cursor: Optional[str] = None
@@ -421,11 +416,7 @@ async def get_research(
     if not settings.notion_research_db_id:
         raise RuntimeError("NOTION_RESEARCH_DB_ID is not configured.")
 
-    filter_payload: Optional[dict] = (
-        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
-        if tenant_id
-        else None
-    )
+    filter_payload: Optional[dict] = None
 
     response = await _query_database_records(
         client=client,
@@ -506,11 +497,7 @@ async def get_roadmap(
     if not settings.notion_roadmap_db_id:
         raise RuntimeError("NOTION_ROADMAP_DB_ID is not configured.")
 
-    filter_payload: Optional[dict] = (
-        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
-        if tenant_id
-        else None
-    )
+    filter_payload: Optional[dict] = None
 
     response = await _query_database_records(
         client=client,
@@ -603,11 +590,7 @@ async def get_tasks(
     if not settings.notion_tasks_db_id:
         raise RuntimeError("NOTION_TASKS_DB_ID is not configured.")
 
-    filter_payload: Optional[dict] = (
-        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
-        if tenant_id
-        else None
-    )
+    filter_payload: Optional[dict] = None
 
     response = await _query_database_records(
         client=client,
@@ -688,11 +671,7 @@ async def get_reports(
     if not settings.notion_reports_db_id:
         raise RuntimeError("NOTION_REPORTS_DB_ID is not configured.")
 
-    filter_payload: Optional[dict] = (
-        {"property": "tenant_id", "rich_text": {"equals": tenant_id}}
-        if tenant_id
-        else None
-    )
+    filter_payload: Optional[dict] = None
 
     response = await _query_database_records(
         client=client,
