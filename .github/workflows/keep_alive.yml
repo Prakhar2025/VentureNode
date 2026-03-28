@@ -15,11 +15,11 @@ jobs:
     steps:
       - name: Ping Render backend
         run: |
-          echo "Pinging VentureNode backend at ${{ vars.RENDER_BACKEND_URL }}"
+          echo "Pinging VentureNode backend at https://venturenode.onrender.com"
 
           RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
             --max-time 30 \
-            "${{ vars.RENDER_BACKEND_URL }}/api/v1/health")
+            "https://venturenode.onrender.com/api/v1/health")
 
           HTTP_BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
           HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
