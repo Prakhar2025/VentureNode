@@ -144,7 +144,7 @@ function Navbar() {
       {/* CTAs */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <a
-          href="https://github.com/Prakhar-commits/VentureNode"
+          href="https://github.com/Prakhar2025/VentureNode"
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -394,7 +394,7 @@ function Hero() {
           </Link>
 
           <a
-            href="https://github.com/Prakhar-commits/VentureNode"
+            href="https://github.com/Prakhar2025/VentureNode"
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -940,7 +940,7 @@ function CTABanner() {
           </Link>
 
           <a
-            href="https://github.com/Prakhar-commits/VentureNode"
+            href="https://github.com/Prakhar2025/VentureNode"
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -1010,7 +1010,7 @@ function Footer() {
 
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <a
-          href="https://github.com/Prakhar-commits/VentureNode"
+          href="https://github.com/Prakhar2025/VentureNode"
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -1029,7 +1029,7 @@ function Footer() {
           <Github size={14} />
           GitHub
         </a>
-        <span style={{ fontSize: 13, color: "#9CA3AF" }}>Built by Prakhar Shukla · 2025</span>
+        <span style={{ fontSize: 13, color: "#9CA3AF" }}>Built by Prakhar Shukla · 2026</span>
       </div>
     </footer>
   );
