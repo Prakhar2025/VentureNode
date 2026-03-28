@@ -44,3 +44,5 @@ structlog>=25.1.0
 
 # --- Authentication (Clerk JWT) ---
 PyJWT[cryptography]>=2.9.0
+
+cryptography>=43.0.0
