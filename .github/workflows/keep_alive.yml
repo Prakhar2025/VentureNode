@@ -19,7 +19,7 @@ jobs:
 
           RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
             --max-time 30 \
-            "${{ vars.RENDER_BACKEND_URL }}/health")
+            "${{ vars.RENDER_BACKEND_URL }}/api/v1/health")
 
           HTTP_BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
           HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
