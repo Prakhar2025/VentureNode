@@ -1,0 +1,35 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Runs every 5 minutes — keeps Render free tier warm
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  ping:
+    name: Ping Backend Health Endpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Ping Render backend
+        run: |
+          echo "Pinging VentureNode backend at ${{ vars.RENDER_BACKEND_URL }}"
+
+          RESPONSE=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" \
+            --max-time 30 \
+            "${{ vars.RENDER_BACKEND_URL }}/health")
+
+          HTTP_BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+          HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+          echo "Status: $HTTP_STATUS"
+          echo "Response: $HTTP_BODY"
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Backend returned non-200 status: $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "Backend is alive and healthy."
