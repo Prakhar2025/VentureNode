@@ -85,7 +85,7 @@ const publicClient: AxiosInstance = axios.create({
 function createAuthClient(token: string): AxiosInstance {
   return axios.create({
     baseURL: BASE_URL,
-    timeout: 30_000,
+    timeout: 120_000,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
